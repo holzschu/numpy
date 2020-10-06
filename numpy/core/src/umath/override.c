@@ -236,6 +236,11 @@ normalize___call___args(PyUFuncObject *ufunc, PyObject *args,
     return nkwds == 0 ? 0 : normalize_signature_keyword(*normal_kwds);
 }
 
+// iOS: move static variables outside of function
+#if TARGET_OS_IPHONE
+static PyObject *NoValue = NULL;
+#endif
+
 static int
 normalize_reduce_args(PyUFuncObject *ufunc, PyObject *args,
                       PyObject **normal_args, PyObject **normal_kwds)
@@ -246,7 +251,9 @@ normalize_reduce_args(PyUFuncObject *ufunc, PyObject *args,
     npy_intp nargs = PyTuple_GET_SIZE(args);
     npy_intp i;
     PyObject *obj;
+#if !TARGET_OS_IPHONE
     static PyObject *NoValue = NULL;
+#endif
     static char *kwlist[] = {"array", "axis", "dtype", "out", "keepdims",
                              "initial", "where"};
 
@@ -446,6 +453,16 @@ normalize_at_args(PyUFuncObject *ufunc, PyObject *args,
     *normal_args = PyTuple_GetSlice(args, 0, nargs);
     return (*normal_args == NULL);
 }
+
+// iOS: move static variables out of functions:
+#if TARGET_OS_IPHONE
+static PyObject *errmsg_formatter = NULL;
+
+NPY_NO_EXPORT void clear_override_caches() {
+    NoValue = NULL;
+    errmsg_formatter = NULL;
+}
+#endif
 
 /*
  * Check a set of args for the `__array_ufunc__` method.  If more than one of
@@ -672,7 +689,9 @@ PyUFunc_CheckOverride(PyUFuncObject *ufunc, char *method,
         /* Check if there is a method left to call */
         if (!override_obj) {
             /* No acceptable override found. */
+#if !TARGET_OS_IPHONE
             static PyObject *errmsg_formatter = NULL;
+#endif
             PyObject *errmsg;
 
             npy_cache_import("numpy.core._internal",

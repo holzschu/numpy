@@ -37,6 +37,12 @@
 #define PyDictProxy_Check(obj) (Py_TYPE(obj) == &PyDictProxy_Type)
 #endif
 
+#if TARGET_OS_IPHONE
+NPY_NO_EXPORT void clear_descriptor_caches() {
+    py_func = NULL; // defined in npy_ctypes.h
+}
+#endif
+
 static PyObject *typeDict = NULL;   /* Must be explicitly loaded */
 
 static PyArray_Descr *

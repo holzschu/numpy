@@ -29,6 +29,44 @@
 #include "methods.h"
 #include "alloc.h"
 
+// iOS: define static variables outside of functions
+#if TARGET_OS_IPHONE
+static PyObject *checkfunc = NULL;
+static PyObject *callable_mean = NULL;
+static PyObject *callable_sum = NULL;
+static PyObject *callable_prod = NULL;
+static PyObject *callable_any = NULL;
+static PyObject *callable_all = NULL;
+static PyObject *callable_std = NULL;
+static PyObject *callable_var = NULL;
+static PyObject *callable_amax = NULL;
+static PyObject *callable_amin = NULL;
+static PyObject *callable_ptp = NULL;
+static PyObject *callable_dump = NULL;
+static PyObject *callable_dumps = NULL;
+static PyObject *callable_clip = NULL;
+
+// iOS: reinitialize static variables (used for caching), since they were moved outside of functions
+// Called from multiarraymodule.c, when deleting the module in multiarray_umath_free()
+NPY_NO_EXPORT void clear_methods_caches() {
+    checkfunc = NULL;
+    // callable_array_function = NULL;
+    callable_mean = NULL;
+    callable_sum = NULL;
+    callable_prod = NULL;
+    callable_any = NULL;
+    callable_all = NULL;
+    callable_std = NULL;
+    callable_var = NULL;
+    callable_amax = NULL;
+    callable_amin = NULL;
+    callable_ptp = NULL;
+    callable_dump = NULL;
+    callable_dumps = NULL; 
+	callable_clip = NULL;
+}
+
+#endif
 
 /* NpyArg_ParseKeywords
  *
@@ -316,22 +354,55 @@ array_argmin(PyArrayObject *self, PyObject *args, PyObject *kwds)
     }
 }
 
+#if TARGET_OS_IPHONE
+#endif
 static PyObject *
 array_max(PyArrayObject *self, PyObject *args, PyObject *kwds)
 {
+    // iOS: we need the static variable outside of the function.
+#if !TARGET_OS_IPHONE
     NPY_FORWARD_NDARRAY_METHOD("_amax");
+#else
+    npy_cache_import("numpy.core._methods", "_amax", &callable_amax);
+	if (callable_amax == NULL) {
+		return NULL;
+	}
+    return forward_ndarray_method(self, args, kwds, callable_amax);
+#endif
 }
 
+#if TARGET_OS_IPHONE
+#endif
 static PyObject *
 array_min(PyArrayObject *self, PyObject *args, PyObject *kwds)
 {
+    // iOS: we need the static variable outside of the function.
+#if !TARGET_OS_IPHONE
     NPY_FORWARD_NDARRAY_METHOD("_amin");
+#else
+    npy_cache_import("numpy.core._methods", "_amin", &callable_amin);
+    if (callable_amin == NULL) {
+        return NULL;
+    }
+    return forward_ndarray_method(self, args, kwds, callable_amin);
+#endif
 }
 
+#if TARGET_OS_IPHONE
+#endif
 static PyObject *
 array_ptp(PyArrayObject *self, PyObject *args, PyObject *kwds)
 {
+    // iOS: we need the static variable outside of the function.
+#if !TARGET_OS_IPHONE
     NPY_FORWARD_NDARRAY_METHOD("_ptp");
+#else 
+    npy_cache_import("numpy.core._methods", "_ptp", &callable_ptp);
+    if (callable_ptp == NULL) {
+        return NULL;
+    }
+    return forward_ndarray_method(self, args, kwds, callable_ptp);
+#endif
 }
 
 
@@ -356,7 +427,9 @@ PyArray_GetField(PyArrayObject *self, PyArray_Descr *typed, int offset)
 {
     PyObject *ret = NULL;
     PyObject *safe;
+#if !TARGET_OS_IPHONE
     static PyObject *checkfunc = NULL;
+#endif
     int self_elsize, typed_elsize;
 
     /* check that we are not reinterpreting memory containing Objects. */
@@ -2130,17 +2203,39 @@ PyArray_Dumps(PyObject *self, int protocol)
 }
 
 
+#if TARGET_OS_IPHONE
+#endif
 static PyObject *
 array_dump(PyArrayObject *self, PyObject *args, PyObject *kwds)
 {
-    NPY_FORWARD_NDARRAY_METHOD("_dump");
+    // iOS: we need the static variable outside of the function.
+#if !TARGET_OS_IPHONE
+	NPY_FORWARD_NDARRAY_METHOD("_dump");
+#else
+    npy_cache_import("numpy.core._methods", "_dump", &callable_dump);
+	if (callable_dump == NULL) {
+		return NULL;
+	}
+    return forward_ndarray_method(self, args, kwds, callable_dump);
+#endif
 }
 
 
+#if TARGET_OS_IPHONE
+#endif
 static PyObject *
 array_dumps(PyArrayObject *self, PyObject *args, PyObject *kwds)
 {
+    // iOS: we need the static variable outside of the function.
+#if !TARGET_OS_IPHONE
     NPY_FORWARD_NDARRAY_METHOD("_dumps");
+#else
+    npy_cache_import("numpy.core._methods", "_dumps", &callable_dumps);
+	if (callable_dumps == NULL) {
+		return NULL;
+	}
+    return forward_ndarray_method(self, args, kwds, callable_dumps);
+#endif
 }
 
 
@@ -2188,16 +2283,38 @@ array_transpose(PyArrayObject *self, PyObject *args)
 
 #define _CHKTYPENUM(typ) ((typ) ? (typ)->type_num : NPY_NOTYPE)
 
+#if TARGET_OS_IPHONE
+#endif
 static PyObject *
 array_mean(PyArrayObject *self, PyObject *args, PyObject *kwds)
 {
+    // iOS: we need the static variable outside of the function.
+#if !TARGET_OS_IPHONE
     NPY_FORWARD_NDARRAY_METHOD("_mean");
+#else
+    npy_cache_import("numpy.core._methods", "_mean", &callable_mean);
+	if (callable_mean == NULL) {
+		return NULL;
+	}
+    return forward_ndarray_method(self, args, kwds, callable_mean);
+#endif
 }
 
+#if TARGET_OS_IPHONE
+#endif
 static PyObject *
 array_sum(PyArrayObject *self, PyObject *args, PyObject *kwds)
 {
+    // iOS: we need the static variable outside of the function.
+#if !TARGET_OS_IPHONE
     NPY_FORWARD_NDARRAY_METHOD("_sum");
+#else
+    npy_cache_import("numpy.core._methods", "_sum", &callable_sum);
+    if (callable_sum == NULL) {
+        return NULL;
+    }
+    return forward_ndarray_method(self, args, kwds, callable_sum);
+#endif
 }
 
 
@@ -2223,10 +2340,21 @@ array_cumsum(PyArrayObject *self, PyObject *args, PyObject *kwds)
     return PyArray_CumSum(self, axis, rtype, out);
 }
 
+#if TARGET_OS_IPHONE
+#endif
 static PyObject *
 array_prod(PyArrayObject *self, PyObject *args, PyObject *kwds)
 {
+    // iOS: we need the static variable outside of the function.
+#if !TARGET_OS_IPHONE
     NPY_FORWARD_NDARRAY_METHOD("_prod");
+#else 
+    npy_cache_import("numpy.core._methods", "_prod", &callable_prod);
+    if (callable_prod == NULL) {
+        return NULL;
+    }
+    return forward_ndarray_method(self, args, kwds, callable_prod);
+#endif
 }
 
 static PyObject *
@@ -2279,29 +2407,73 @@ array_dot(PyArrayObject *self, PyObject *args, PyObject *kwds)
 }
 
 
+#if TARGET_OS_IPHONE
+#endif
 static PyObject *
 array_any(PyArrayObject *self, PyObject *args, PyObject *kwds)
 {
+    // iOS: we need the static variable outside of the function.
+#if !TARGET_OS_IPHONE
     NPY_FORWARD_NDARRAY_METHOD("_any");
+#else 
+    npy_cache_import("numpy.core._methods", "_any", &callable_any);
+    if (callable_any == NULL) {
+        return NULL;
+    }
+    return forward_ndarray_method(self, args, kwds, callable_any);
+#endif
 }
 
 
+#if TARGET_OS_IPHONE
+#endif
 static PyObject *
 array_all(PyArrayObject *self, PyObject *args, PyObject *kwds)
 {
+    // iOS: we need the static variable outside of the function.
+#if !TARGET_OS_IPHONE
     NPY_FORWARD_NDARRAY_METHOD("_all");
+#else 
+    npy_cache_import("numpy.core._methods", "_all", &callable_all);
+    if (callable_all == NULL) {
+        return NULL;
+    }
+    return forward_ndarray_method(self, args, kwds, callable_all);
+#endif
 }
 
+#if TARGET_OS_IPHONE
+#endif
 static PyObject *
 array_stddev(PyArrayObject *self, PyObject *args, PyObject *kwds)
 {
+    // iOS: we need the static variable outside of the function.
+#if !TARGET_OS_IPHONE
     NPY_FORWARD_NDARRAY_METHOD("_std");
+#else 
+    npy_cache_import("numpy.core._methods", "_std", &callable_std);
+    if (callable_std == NULL) {
+        return NULL;
+    }
+    return forward_ndarray_method(self, args, kwds, callable_std);
+#endif
 }
 
+#if TARGET_OS_IPHONE
+#endif
 static PyObject *
 array_variance(PyArrayObject *self, PyObject *args, PyObject *kwds)
 {
+    // iOS: we need the static variable outside of the function.
+#if !TARGET_OS_IPHONE
     NPY_FORWARD_NDARRAY_METHOD("_var");
+#else 
+    npy_cache_import("numpy.core._methods", "_var", &callable_var);
+    if (callable_var == NULL) {
+        return NULL;
+    }
+    return forward_ndarray_method(self, args, kwds, callable_var);
+#endif
 }
 
 static PyObject *
@@ -2376,10 +2548,21 @@ array_trace(PyArrayObject *self, PyObject *args, PyObject *kwds)
 #undef _CHKTYPENUM
 
 
+#if TARGET_OS_IPHONE
+#endif
 static PyObject *
 array_clip(PyArrayObject *self, PyObject *args, PyObject *kwds)
 {
+    // iOS: we need the static variable outside of the function.
+#if !TARGET_OS_IPHONE
     NPY_FORWARD_NDARRAY_METHOD("_clip");
+#else 
+    npy_cache_import("numpy.core._methods", "_clip", &callable_clip);
+    if (callable_clip == NULL) {
+        return NULL;
+    }
+    return forward_ndarray_method(self, args, kwds, callable_clip);
+#endif
 }
 
 

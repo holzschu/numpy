@@ -453,8 +453,16 @@ _void_to_hex(const char* argbuf, const Py_ssize_t arglen,
     return retval;
 }
 
+// iOS: move static variables outside of function, so
+// we can clear them when we leave. And change name since
+// reprfunc is a type name.
+#if TARGET_OS_IPHONE
+static PyObject *reprfunc_cache = NULL;
+#endif
+
 static PyObject *
 _void_scalar_repr(PyObject *obj) {
+#if !TARGET_OS_IPHONE
     static PyObject *reprfunc = NULL;
     npy_cache_import("numpy.core.arrayprint",
                      "_void_scalar_repr", &reprfunc);
@@ -462,6 +470,14 @@ _void_scalar_repr(PyObject *obj) {
         return NULL;
     }
     return PyObject_CallFunction(reprfunc, "O", obj);
+#else
+    npy_cache_import("numpy.core.arrayprint",
+                     "_void_scalar_repr", &reprfunc_cache);
+    if (reprfunc_cache == NULL) {
+        return NULL;
+    }
+    return PyObject_CallFunction(reprfunc_cache, "O", obj);
+#endif
 }
 
 static PyObject *

@@ -334,20 +334,22 @@ else:
             default_x11_include_dirs.extend(['/usr/lib/X11/include',
                                              '/usr/include/X11'])
 
-    with open(os.devnull, 'w') as tmp:
-        try:
-            p = subprocess.Popen(["gcc", "-print-multiarch"], stdout=subprocess.PIPE,
-                         stderr=tmp)
-        except (OSError, DistutilsError):
-            # OSError if gcc is not installed, or SandboxViolation (DistutilsError
-            # subclass) if an old setuptools bug is triggered (see gh-3160).
-            pass
-        else:
-            triplet = str(p.communicate()[0].decode().strip())
-            if p.returncode == 0:
-                # gcc supports the "-print-multiarch" option
-                default_x11_lib_dirs += [os.path.join("/usr/lib/", triplet)]
-                default_lib_dirs += [os.path.join("/usr/lib/", triplet)]
+    # iOS: we need to cancel this call
+    if (not os.getenv('PLATFORM').startswith('iphone')):
+        with open(os.devnull, 'w') as tmp:
+            try:
+                p = subprocess.Popen(["gcc", "-print-multiarch"], stdout=subprocess.PIPE,
+                             stderr=tmp)
+            except (OSError, DistutilsError):
+                # OSError if gcc is not installed, or SandboxViolation (DistutilsError
+                # subclass) if an old setuptools bug is triggered (see gh-3160).
+                pass
+            else:
+                triplet = str(p.communicate()[0].decode().strip())
+                if p.returncode == 0:
+                    # gcc supports the "-print-multiarch" option
+                    default_x11_lib_dirs += [os.path.join("/usr/lib/", triplet)]
+                    default_lib_dirs += [os.path.join("/usr/lib/", triplet)]
 
 
 if os.path.join(sys.prefix, 'lib') not in default_lib_dirs:

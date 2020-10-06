@@ -14,10 +14,16 @@
  * This entire function is just a wrapper around the Python function of the
  * same name.
  */
+// iOS: move static variables outside of functions
+#if TARGET_OS_IPHONE
+static PyObject *py_func = NULL;
+#endif
 NPY_INLINE static int
 npy_ctypes_check(PyTypeObject *obj)
 {
+#if !TARGET_OS_IPHONE
     static PyObject *py_func = NULL;
+#endif
     PyObject *ret_obj;
     int ret;
 

@@ -69,6 +69,22 @@ NPY_NO_EXPORT int NPY_NUMUSERTYPES = 0;
 
 #include "get_attr_string.h"
 
+// iOS: clean cached values.
+#if TARGET_OS_IPHONE
+// Cache cleanup on leaving:
+NPY_NO_EXPORT void release_buffer_info_cache(void);
+NPY_NO_EXPORT void npy_clean_caches(void);
+NPY_NO_EXPORT void PyUFuncOverride_ResetDefaultArrayUfunc(void);
+NPY_NO_EXPORT void clear_ufunc_object_caches(void);
+NPY_NO_EXPORT void clear_override_caches(void);
+NPY_NO_EXPORT void clear_ctors_caches(void);
+NPY_NO_EXPORT void clear_methods_caches(void);
+NPY_NO_EXPORT void clear_getset_caches(void);
+NPY_NO_EXPORT void clear_descriptor_caches(void);
+NPY_NO_EXPORT void reset_PyArray_Type(void);
+NPY_NO_EXPORT void reset_PyUFunc_Type(void);
+#endif
+
 /*
  *****************************************************************************
  **                    INCLUDE GENERATED CODE                               **
@@ -3971,6 +3987,10 @@ _PyArray_GetSigintBuf(void)
 #endif
 
 
+// iOS: move static variables outside of functions
+#if TARGET_OS_IPHONE
+static PyObject *too_hard_cls = NULL;
+#endif
 static PyObject *
 array_shares_memory_impl(PyObject *args, PyObject *kwds, Py_ssize_t default_max_work,
                          int raise_exceptions)
@@ -3983,7 +4003,9 @@ array_shares_memory_impl(PyObject *args, PyObject *kwds, Py_ssize_t default_max_
     static char *kwlist[] = {"self", "other", "max_work", NULL};
 
     mem_overlap_t result;
+#if !TARGET_OS_IPHONE
     static PyObject *too_hard_cls = NULL;
+#endif
     Py_ssize_t max_work;
     NPY_BEGIN_THREADS_DEF;
 
@@ -4496,6 +4518,29 @@ NPY_VISIBILITY_HIDDEN PyObject * npy_ma_str_axis2 = NULL;
 NPY_VISIBILITY_HIDDEN PyObject * npy_ma_str_like = NULL;
 NPY_VISIBILITY_HIDDEN PyObject * npy_ma_str_numpy = NULL;
 
+
+#if TARGET_OS_IPHONE
+static void
+multiarray_umath_free(PyObject *m)
+{
+    release_buffer_info_cache();
+    npy_clean_caches();
+    PyUFuncOverride_ResetDefaultArrayUfunc();
+    // npy_cache_import: ufunc_object:
+    clear_ufunc_object_caches();
+    // npy_cache_import: internal
+    math_gcd_func = NULL;
+    internal_gcd_func = NULL;
+    too_hard_cls = NULL; 
+    // npy_cache_import: override.c:
+    clear_override_caches();
+    clear_ctors_caches();
+    clear_methods_caches();
+    clear_getset_caches();
+    clear_descriptor_caches();
+}
+#endif
+
 static int
 intern_strings(void)
 {
@@ -4531,7 +4576,11 @@ static struct PyModuleDef moduledef = {
         NULL,
         NULL,
         NULL,
+#if TARGET_OS_IPHONE
+        (freefunc)multiarray_umath_free /* m_free */
+#else	
         NULL
+#endif
 };
 
 /* Initialization function for the module */
@@ -4539,6 +4588,12 @@ PyMODINIT_FUNC PyInit__multiarray_umath(void) {
     PyObject *m, *d, *s;
     PyObject *c_api;
 
+#if TARGET_OS_IPHONE
+// iOS: re-initialize PyArray_API and PyUFunc_API with new pointers to functions
+#include <numpy/__multiarray_api_init.c>
+#include <numpy/__ufunc_api_init.c>
+    // TODO: check if still needed
+#endif
     /* Initialize CPU features */
     if (npy_cpu_init() < 0) {
         goto err;
@@ -4572,6 +4627,12 @@ PyMODINIT_FUNC PyInit__multiarray_umath(void) {
         goto err;
     }
 
+    // iOS: before any access, we reset PyArrayType and PyUFunc_Type to their default values.
+#if TARGET_OS_IPHONE
+    reset_PyArray_Type();
+    reset_PyUFunc_Type();
+    // TODO: reset other types:
+#endif
     /*
      * Before calling PyType_Ready, initialize the tp_hash slot in
      * PyArray_Type to work around mingw32 not being able initialize

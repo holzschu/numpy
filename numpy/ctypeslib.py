@@ -119,6 +119,14 @@ else:
             warnings.warn("All features of ctypes interface may not work "
                           "with ctypes < 1.0.1", stacklevel=2)
 
+        # iOS: the actual library path depends on the executable and APPDIR. We cannot create it in python
+        # so we create it in callproc.c (py_dl_open).
+        import sys
+        if (sys.platform == 'darwin' and os.uname().machine.startswith('iP')):
+            libpath = loader_path + '.' + libname
+            return ctypes.cdll[libpath]
+            
+        # not iOS: 
         ext = os.path.splitext(libname)[1]
         if not ext:
             # Try to load library with platform-specific name, otherwise

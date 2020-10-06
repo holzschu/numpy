@@ -44,6 +44,29 @@ static cache_bucket dimcache[NBUCKETS_DIM];
 
 static int _madvise_hugepage = 1;
 
+#if TARGET_OS_IPHONE
+// iOS: clean the caches, called when Python exits
+NPY_NO_EXPORT void
+npy_clean_caches()
+{
+    // Cleanup both datacache and dimcache:
+    for (int i = 0; i < NBUCKETS; i++) {
+        for (npy_uintp j = 0; j < datacache[i].available; j++) {
+            PyDataMem_FREE(datacache[i].ptrs[j]);
+            datacache[i].ptrs[j] = NULL;
+        }
+        datacache[i].available = 0;
+    }
+    for (int i = 0; i < NBUCKETS_DIM; i++) {
+        for (npy_uintp j = 0; j < dimcache[i].available; j++) {
+            PyDataMem_FREE(dimcache[i].ptrs[j]);
+            dimcache[i].ptrs[j] = NULL;
+        }
+        dimcache[i].available = 0;
+    }
+}
+#endif
+
 
 /*
  * This function enables or disables the use of `MADV_HUGEPAGE` on Linux
