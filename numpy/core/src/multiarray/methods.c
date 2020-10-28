@@ -29,45 +29,6 @@
 #include "methods.h"
 #include "alloc.h"
 
-// iOS: define static variables outside of functions
-#if TARGET_OS_IPHONE
-static PyObject *checkfunc = NULL;
-static PyObject *callable_mean = NULL;
-static PyObject *callable_sum = NULL;
-static PyObject *callable_prod = NULL;
-static PyObject *callable_any = NULL;
-static PyObject *callable_all = NULL;
-static PyObject *callable_std = NULL;
-static PyObject *callable_var = NULL;
-static PyObject *callable_amax = NULL;
-static PyObject *callable_amin = NULL;
-static PyObject *callable_ptp = NULL;
-static PyObject *callable_dump = NULL;
-static PyObject *callable_dumps = NULL;
-static PyObject *callable_clip = NULL;
-
-// iOS: reinitialize static variables (used for caching), since they were moved outside of functions
-// Called from multiarraymodule.c, when deleting the module in multiarray_umath_free()
-NPY_NO_EXPORT void clear_methods_caches() {
-    checkfunc = NULL;
-    // callable_array_function = NULL;
-    callable_mean = NULL;
-    callable_sum = NULL;
-    callable_prod = NULL;
-    callable_any = NULL;
-    callable_all = NULL;
-    callable_std = NULL;
-    callable_var = NULL;
-    callable_amax = NULL;
-    callable_amin = NULL;
-    callable_ptp = NULL;
-    callable_dump = NULL;
-    callable_dumps = NULL; 
-	callable_clip = NULL;
-}
-
-#endif
-
 /* NpyArg_ParseKeywords
  *
  * Utility function that provides the keyword parsing functionality of
@@ -131,6 +92,7 @@ forward_ndarray_method(PyArrayObject *self, PyObject *args, PyObject *kwds,
  * initialization is not thread-safe, but relies on the CPython GIL to
  * be correct.
  */
+#if !TARGET_OS_IPHONE
 #define NPY_FORWARD_NDARRAY_METHOD(name) \
         static PyObject *callable = NULL; \
         npy_cache_import("numpy.core._methods", name, &callable); \
@@ -138,6 +100,15 @@ forward_ndarray_method(PyArrayObject *self, PyObject *args, PyObject *kwds,
             return NULL; \
         } \
         return forward_ndarray_method(self, args, kwds, callable)
+#else
+#define NPY_FORWARD_NDARRAY_METHOD(name) \
+        static __thread PyObject *callable = NULL; \
+        npy_cache_import("numpy.core._methods", name, &callable); \
+        if (callable == NULL) { \
+            return NULL; \
+        } \
+        return forward_ndarray_method(self, args, kwds, callable)
+#endif
 
 
 static PyObject *
@@ -147,7 +118,11 @@ array_take(PyArrayObject *self, PyObject *args, PyObject *kwds)
     PyObject *indices;
     PyArrayObject *out = NULL;
     NPY_CLIPMODE mode = NPY_RAISE;
+#if !TARGET_OS_IPHONE
     static char *kwlist[] = {"indices", "axis", "out", "mode", NULL};
+#else
+    static __thread char *kwlist[] = {"indices", "axis", "out", "mode", NULL};
+#endif
 
     if (!PyArg_ParseTupleAndKeywords(args, kwds, "O|O&O&O&:take", kwlist,
                                      &indices,
@@ -185,7 +160,11 @@ array_put(PyArrayObject *self, PyObject *args, PyObject *kwds)
 {
     PyObject *indices, *values;
     NPY_CLIPMODE mode = NPY_RAISE;
+#if !TARGET_OS_IPHONE
     static char *kwlist[] = {"indices", "values", "mode", NULL};
+#else
+    static __thread char *kwlist[] = {"indices", "values", "mode", NULL};
+#endif
 
     if (!PyArg_ParseTupleAndKeywords(args, kwds, "OO|O&:put", kwlist,
                                      &indices,
@@ -198,7 +177,11 @@ array_put(PyArrayObject *self, PyObject *args, PyObject *kwds)
 static PyObject *
 array_reshape(PyArrayObject *self, PyObject *args, PyObject *kwds)
 {
+#if !TARGET_OS_IPHONE
     static char *keywords[] = {"order", NULL};
+#else
+    static __thread char *keywords[] = {"order", NULL};
+#endif
     PyArray_Dims newshape;
     PyObject *ret;
     NPY_ORDER order = NPY_CORDER;
@@ -242,7 +225,11 @@ array_squeeze(PyArrayObject *self, PyObject *args, PyObject *kwds)
     PyObject *axis_in = NULL;
     npy_bool axis_flags[NPY_MAXDIMS];
 
+#if !TARGET_OS_IPHONE
     static char *kwlist[] = {"axis", NULL};
+#else
+    static __thread char *kwlist[] = {"axis", NULL};
+#endif
     if (!PyArg_ParseTupleAndKeywords(args, kwds, "|O:squeeze", kwlist,
                                      &axis_in)) {
         return NULL;
@@ -268,7 +255,11 @@ array_view(PyArrayObject *self, PyObject *args, PyObject *kwds)
     PyObject *out_type = NULL;
     PyArray_Descr *dtype = NULL;
 
+#if !TARGET_OS_IPHONE
     static char *kwlist[] = {"dtype", "type", NULL};
+#else
+    static __thread char *kwlist[] = {"dtype", "type", NULL};
+#endif
     if (!PyArg_ParseTupleAndKeywords(args, kwds, "|OO:view", kwlist,
                                      &out_dtype,
                                      &out_type)) {
@@ -313,7 +304,11 @@ array_argmax(PyArrayObject *self, PyObject *args, PyObject *kwds)
 {
     int axis = NPY_MAXDIMS;
     PyArrayObject *out = NULL;
+#if !TARGET_OS_IPHONE
     static char *kwlist[] = {"axis", "out", NULL};
+#else
+    static __thread char *kwlist[] = {"axis", "out", NULL};
+#endif
 
     if (!PyArg_ParseTupleAndKeywords(args, kwds, "|O&O&:argmax", kwlist,
                                      PyArray_AxisConverter, &axis,
@@ -336,7 +331,11 @@ array_argmin(PyArrayObject *self, PyObject *args, PyObject *kwds)
 {
     int axis = NPY_MAXDIMS;
     PyArrayObject *out = NULL;
+#if !TARGET_OS_IPHONE
     static char *kwlist[] = {"axis", "out", NULL};
+#else
+    static __thread char *kwlist[] = {"axis", "out", NULL};
+#endif
 
     if (!PyArg_ParseTupleAndKeywords(args, kwds, "|O&O&:argmin", kwlist,
                                      PyArray_AxisConverter, &axis,
@@ -354,55 +353,22 @@ array_argmin(PyArrayObject *self, PyObject *args, PyObject *kwds)
     }
 }
 
-#if TARGET_OS_IPHONE
-#endif
 static PyObject *
 array_max(PyArrayObject *self, PyObject *args, PyObject *kwds)
 {
-    // iOS: we need the static variable outside of the function.
-#if !TARGET_OS_IPHONE
     NPY_FORWARD_NDARRAY_METHOD("_amax");
-#else
-    npy_cache_import("numpy.core._methods", "_amax", &callable_amax);
-	if (callable_amax == NULL) {
-		return NULL;
-	}
-    return forward_ndarray_method(self, args, kwds, callable_amax);
-#endif
 }
 
-#if TARGET_OS_IPHONE
-#endif
 static PyObject *
 array_min(PyArrayObject *self, PyObject *args, PyObject *kwds)
 {
-    // iOS: we need the static variable outside of the function.
-#if !TARGET_OS_IPHONE
     NPY_FORWARD_NDARRAY_METHOD("_amin");
-#else
-    npy_cache_import("numpy.core._methods", "_amin", &callable_amin);
-    if (callable_amin == NULL) {
-        return NULL;
-    }
-    return forward_ndarray_method(self, args, kwds, callable_amin);
-#endif
 }
 
-#if TARGET_OS_IPHONE
-#endif
 static PyObject *
 array_ptp(PyArrayObject *self, PyObject *args, PyObject *kwds)
 {
-    // iOS: we need the static variable outside of the function.
-#if !TARGET_OS_IPHONE
     NPY_FORWARD_NDARRAY_METHOD("_ptp");
-#else 
-    npy_cache_import("numpy.core._methods", "_ptp", &callable_ptp);
-    if (callable_ptp == NULL) {
-        return NULL;
-    }
-    return forward_ndarray_method(self, args, kwds, callable_ptp);
-#endif
 }
 
 
@@ -429,6 +395,8 @@ PyArray_GetField(PyArrayObject *self, PyArray_Descr *typed, int offset)
     PyObject *safe;
 #if !TARGET_OS_IPHONE
     static PyObject *checkfunc = NULL;
+#else
+    static __thread PyObject *checkfunc = NULL;
 #endif
     int self_elsize, typed_elsize;
 
@@ -486,7 +454,11 @@ array_getfield(PyArrayObject *self, PyObject *args, PyObject *kwds)
 
     PyArray_Descr *dtype = NULL;
     int offset = 0;
+#if !TARGET_OS_IPHONE
     static char *kwlist[] = {"dtype", "offset", 0};
+#else
+    static __thread char *kwlist[] = {"dtype", "offset", 0};
+#endif
 
     if (!PyArg_ParseTupleAndKeywords(args, kwds, "O&|i:getfield", kwlist,
                                      PyArray_DescrConverter, &dtype,
@@ -532,7 +504,11 @@ array_setfield(PyArrayObject *self, PyObject *args, PyObject *kwds)
     PyArray_Descr *dtype = NULL;
     int offset = 0;
     PyObject *value;
+#if !TARGET_OS_IPHONE
     static char *kwlist[] = {"value", "dtype", "offset", 0};
+#else
+    static __thread char *kwlist[] = {"value", "dtype", "offset", 0};
+#endif
 
     if (!PyArg_ParseTupleAndKeywords(args, kwds, "OO&|i:setfield", kwlist,
                                      &value,
@@ -602,7 +578,11 @@ static PyObject *
 array_byteswap(PyArrayObject *self, PyObject *args, PyObject *kwds)
 {
     npy_bool inplace = NPY_FALSE;
+#if !TARGET_OS_IPHONE
     static char *kwlist[] = {"inplace", NULL};
+#else
+    static __thread char *kwlist[] = {"inplace", NULL};
+#endif
 
     if (!PyArg_ParseTupleAndKeywords(args, kwds, "|O&:byteswap", kwlist,
                                      PyArray_BoolConverter, &inplace)) {
@@ -625,7 +605,11 @@ static PyObject *
 array_tobytes(PyArrayObject *self, PyObject *args, PyObject *kwds)
 {
     NPY_ORDER order = NPY_CORDER;
+#if !TARGET_OS_IPHONE
     static char *kwlist[] = {"order", NULL};
+#else
+    static __thread char *kwlist[] = {"order", NULL};
+#endif
 
     if (!PyArg_ParseTupleAndKeywords(args, kwds, "|O&:tobytes", kwlist,
                                      PyArray_OrderConverter, &order)) {
@@ -638,7 +622,11 @@ static PyObject *
 array_tostring(PyArrayObject *self, PyObject *args, PyObject *kwds)
 {
     NPY_ORDER order = NPY_CORDER;
+#if !TARGET_OS_IPHONE
     static char *kwlist[] = {"order", NULL};
+#else
+    static __thread char *kwlist[] = {"order", NULL};
+#endif
 
     if (!PyArg_ParseTupleAndKeywords(args, kwds, "|O&:tostring", kwlist,
                                      PyArray_OrderConverter, &order)) {
@@ -664,7 +652,11 @@ array_tofile(PyArrayObject *self, PyObject *args, PyObject *kwds)
     char *sep = "";
     char *format = "";
     npy_off_t orig_pos = 0;
+#if !TARGET_OS_IPHONE
     static char *kwlist[] = {"file", "sep", "format", NULL};
+#else
+    static __thread char *kwlist[] = {"file", "sep", "format", NULL};
+#endif
 
     if (!PyArg_ParseTupleAndKeywords(args, kwds, "O|ss:tofile", kwlist,
                                      &file,
@@ -862,8 +854,13 @@ array_setscalar(PyArrayObject *self, PyObject *args)
 static PyObject *
 array_astype(PyArrayObject *self, PyObject *args, PyObject *kwds)
 {
+#if !TARGET_OS_IPHONE
     static char *kwlist[] = {"dtype", "order", "casting",
                              "subok", "copy", NULL};
+#else
+    static __thread char *kwlist[] = {"dtype", "order", "casting",
+                             "subok", "copy", NULL};
+#endif
     PyArray_Descr *dtype = NULL;
     /*
      * TODO: UNSAFE default for compatibility, I think
@@ -1163,7 +1160,11 @@ static PyObject *
 array_function(PyArrayObject *NPY_UNUSED(self), PyObject *c_args, PyObject *c_kwds)
 {
     PyObject *func, *types, *args, *kwargs, *result;
+#if !TARGET_OS_IPHONE
     static char *kwlist[] = {"func", "types", "args", "kwargs", NULL};
+#else
+    static __thread char *kwlist[] = {"func", "types", "args", "kwargs", NULL};
+#endif
 
     if (!PyArg_ParseTupleAndKeywords(
             c_args, c_kwds, "OOOO:__array_function__", kwlist,
@@ -1187,7 +1188,11 @@ static PyObject *
 array_copy(PyArrayObject *self, PyObject *args, PyObject *kwds)
 {
     NPY_ORDER order = NPY_CORDER;
+#if !TARGET_OS_IPHONE
     static char *kwlist[] = {"order", NULL};
+#else
+    static __thread char *kwlist[] = {"order", NULL};
+#endif
 
     if (!PyArg_ParseTupleAndKeywords(args, kwds, "|O&:copy", kwlist,
                                      PyArray_OrderConverter, &order)) {
@@ -1211,7 +1216,11 @@ array_copy_keeporder(PyArrayObject *self, PyObject *args)
 static PyObject *
 array_resize(PyArrayObject *self, PyObject *args, PyObject *kwds)
 {
+#if !TARGET_OS_IPHONE
     static char *kwlist[] = {"refcheck", NULL};
+#else
+    static __thread char *kwlist[] = {"refcheck", NULL};
+#endif
     Py_ssize_t size = PyTuple_Size(args);
     int refcheck = 1;
     PyArray_Dims newshape;
@@ -1252,7 +1261,11 @@ static PyObject *
 array_repeat(PyArrayObject *self, PyObject *args, PyObject *kwds) {
     PyObject *repeats;
     int axis = NPY_MAXDIMS;
+#if !TARGET_OS_IPHONE
     static char *kwlist[] = {"repeats", "axis", NULL};
+#else
+    static __thread char *kwlist[] = {"repeats", "axis", NULL};
+#endif
 
     if (!PyArg_ParseTupleAndKeywords(args, kwds, "O|O&:repeat", kwlist,
                                      &repeats,
@@ -1265,7 +1278,12 @@ array_repeat(PyArrayObject *self, PyObject *args, PyObject *kwds) {
 static PyObject *
 array_choose(PyArrayObject *self, PyObject *args, PyObject *kwds)
 {
+#if !TARGET_OS_IPHONE
     static char *keywords[] = {"out", "mode", NULL};
+#else
+    static __thread char *keywords[] = {"out", "mode", NULL};
+#endif
+
     PyObject *choices;
     PyArrayObject *out = NULL;
     NPY_CLIPMODE clipmode = NPY_RAISE;
@@ -1306,7 +1324,11 @@ array_sort(PyArrayObject *self, PyObject *args, PyObject *kwds)
     PyObject *order = NULL;
     PyArray_Descr *saved = NULL;
     PyArray_Descr *newd;
+#if !TARGET_OS_IPHONE
     static char *kwlist[] = {"axis", "kind", "order", NULL};
+#else
+    static __thread char *kwlist[] = {"axis", "kind", "order", NULL};
+#endif
 
     if (!PyArg_ParseTupleAndKeywords(args, kwds, "|iO&O:sort", kwlist,
                                     &axis,
@@ -1362,7 +1384,11 @@ array_partition(PyArrayObject *self, PyObject *args, PyObject *kwds)
     PyObject *order = NULL;
     PyArray_Descr *saved = NULL;
     PyArray_Descr *newd;
+#if !TARGET_OS_IPHONE
     static char *kwlist[] = {"kth", "axis", "kind", "order", NULL};
+#else
+    static __thread char *kwlist[] = {"kth", "axis", "kind", "order", NULL};
+#endif
     PyArrayObject * ktharray;
     PyObject * kthobj;
 
@@ -1428,7 +1454,11 @@ array_argsort(PyArrayObject *self, PyObject *args, PyObject *kwds)
     NPY_SORTKIND sortkind = NPY_QUICKSORT;
     PyObject *order = NULL, *res;
     PyArray_Descr *newd, *saved=NULL;
+#if !TARGET_OS_IPHONE
     static char *kwlist[] = {"axis", "kind", "order", NULL};
+#else
+    static __thread char *kwlist[] = {"axis", "kind", "order", NULL};
+#endif
 
     if (!PyArg_ParseTupleAndKeywords(args, kwds, "|O&O&O:argsort", kwlist,
                                      PyArray_AxisConverter, &axis,
@@ -1480,7 +1510,11 @@ array_argpartition(PyArrayObject *self, PyObject *args, PyObject *kwds)
     NPY_SELECTKIND sortkind = NPY_INTROSELECT;
     PyObject *order = NULL, *res;
     PyArray_Descr *newd, *saved=NULL;
+#if !TARGET_OS_IPHONE
     static char *kwlist[] = {"kth", "axis", "kind", "order", NULL};
+#else
+    static __thread char *kwlist[] = {"kth", "axis", "kind", "order", NULL};
+#endif
     PyObject * kthobj;
     PyArrayObject * ktharray;
 
@@ -1537,7 +1571,11 @@ array_argpartition(PyArrayObject *self, PyObject *args, PyObject *kwds)
 static PyObject *
 array_searchsorted(PyArrayObject *self, PyObject *args, PyObject *kwds)
 {
+#if !TARGET_OS_IPHONE
     static char *kwlist[] = {"v", "side", "sorter", NULL};
+#else
+    static __thread char *kwlist[] = {"v", "side", "sorter", NULL};
+#endif
     PyObject *keys;
     PyObject *sorter;
     NPY_SEARCHSIDE side = NPY_SEARCHLEFT;
@@ -2166,7 +2204,11 @@ array_setstate(PyArrayObject *self, PyObject *args)
 NPY_NO_EXPORT int
 PyArray_Dump(PyObject *self, PyObject *file, int protocol)
 {
+#if !TARGET_OS_IPHONE
     static PyObject *method = NULL;
+#else
+    static __thread PyObject *method = NULL;
+#endif
     PyObject *ret;
     npy_cache_import("numpy.core._methods", "_dump", &method);
     if (method == NULL) {
@@ -2189,7 +2231,11 @@ PyArray_Dump(PyObject *self, PyObject *file, int protocol)
 NPY_NO_EXPORT PyObject *
 PyArray_Dumps(PyObject *self, int protocol)
 {
+#if !TARGET_OS_IPHONE
     static PyObject *method = NULL;
+#else
+    static __thread PyObject *method = NULL;
+#endif
     npy_cache_import("numpy.core._methods", "_dumps", &method);
     if (method == NULL) {
         return NULL;
@@ -2203,39 +2249,17 @@ PyArray_Dumps(PyObject *self, int protocol)
 }
 
 
-#if TARGET_OS_IPHONE
-#endif
 static PyObject *
 array_dump(PyArrayObject *self, PyObject *args, PyObject *kwds)
 {
-    // iOS: we need the static variable outside of the function.
-#if !TARGET_OS_IPHONE
 	NPY_FORWARD_NDARRAY_METHOD("_dump");
-#else
-    npy_cache_import("numpy.core._methods", "_dump", &callable_dump);
-	if (callable_dump == NULL) {
-		return NULL;
-	}
-    return forward_ndarray_method(self, args, kwds, callable_dump);
-#endif
 }
 
 
-#if TARGET_OS_IPHONE
-#endif
 static PyObject *
 array_dumps(PyArrayObject *self, PyObject *args, PyObject *kwds)
 {
-    // iOS: we need the static variable outside of the function.
-#if !TARGET_OS_IPHONE
     NPY_FORWARD_NDARRAY_METHOD("_dumps");
-#else
-    npy_cache_import("numpy.core._methods", "_dumps", &callable_dumps);
-	if (callable_dumps == NULL) {
-		return NULL;
-	}
-    return forward_ndarray_method(self, args, kwds, callable_dumps);
-#endif
 }
 
 
@@ -2283,38 +2307,16 @@ array_transpose(PyArrayObject *self, PyObject *args)
 
 #define _CHKTYPENUM(typ) ((typ) ? (typ)->type_num : NPY_NOTYPE)
 
-#if TARGET_OS_IPHONE
-#endif
 static PyObject *
 array_mean(PyArrayObject *self, PyObject *args, PyObject *kwds)
 {
-    // iOS: we need the static variable outside of the function.
-#if !TARGET_OS_IPHONE
     NPY_FORWARD_NDARRAY_METHOD("_mean");
-#else
-    npy_cache_import("numpy.core._methods", "_mean", &callable_mean);
-	if (callable_mean == NULL) {
-		return NULL;
-	}
-    return forward_ndarray_method(self, args, kwds, callable_mean);
-#endif
 }
 
-#if TARGET_OS_IPHONE
-#endif
 static PyObject *
 array_sum(PyArrayObject *self, PyObject *args, PyObject *kwds)
 {
-    // iOS: we need the static variable outside of the function.
-#if !TARGET_OS_IPHONE
     NPY_FORWARD_NDARRAY_METHOD("_sum");
-#else
-    npy_cache_import("numpy.core._methods", "_sum", &callable_sum);
-    if (callable_sum == NULL) {
-        return NULL;
-    }
-    return forward_ndarray_method(self, args, kwds, callable_sum);
-#endif
 }
 
 
@@ -2325,7 +2327,11 @@ array_cumsum(PyArrayObject *self, PyObject *args, PyObject *kwds)
     PyArray_Descr *dtype = NULL;
     PyArrayObject *out = NULL;
     int rtype;
+#if !TARGET_OS_IPHONE
     static char *kwlist[] = {"axis", "dtype", "out", NULL};
+#else
+    static __thread char *kwlist[] = {"axis", "dtype", "out", NULL};
+#endif
 
     if (!PyArg_ParseTupleAndKeywords(args, kwds, "|O&O&O&:cumsum", kwlist,
                                      PyArray_AxisConverter, &axis,
@@ -2340,21 +2346,10 @@ array_cumsum(PyArrayObject *self, PyObject *args, PyObject *kwds)
     return PyArray_CumSum(self, axis, rtype, out);
 }
 
-#if TARGET_OS_IPHONE
-#endif
 static PyObject *
 array_prod(PyArrayObject *self, PyObject *args, PyObject *kwds)
 {
-    // iOS: we need the static variable outside of the function.
-#if !TARGET_OS_IPHONE
     NPY_FORWARD_NDARRAY_METHOD("_prod");
-#else 
-    npy_cache_import("numpy.core._methods", "_prod", &callable_prod);
-    if (callable_prod == NULL) {
-        return NULL;
-    }
-    return forward_ndarray_method(self, args, kwds, callable_prod);
-#endif
 }
 
 static PyObject *
@@ -2364,7 +2359,11 @@ array_cumprod(PyArrayObject *self, PyObject *args, PyObject *kwds)
     PyArray_Descr *dtype = NULL;
     PyArrayObject *out = NULL;
     int rtype;
+#if !TARGET_OS_IPHONE
     static char *kwlist[] = {"axis", "dtype", "out", NULL};
+#else
+    static __thread char *kwlist[] = {"axis", "dtype", "out", NULL};
+#endif
 
     if (!PyArg_ParseTupleAndKeywords(args, kwds, "|O&O&O&:cumprod", kwlist,
                                      PyArray_AxisConverter, &axis,
@@ -2407,73 +2406,29 @@ array_dot(PyArrayObject *self, PyObject *args, PyObject *kwds)
 }
 
 
-#if TARGET_OS_IPHONE
-#endif
 static PyObject *
 array_any(PyArrayObject *self, PyObject *args, PyObject *kwds)
 {
-    // iOS: we need the static variable outside of the function.
-#if !TARGET_OS_IPHONE
     NPY_FORWARD_NDARRAY_METHOD("_any");
-#else 
-    npy_cache_import("numpy.core._methods", "_any", &callable_any);
-    if (callable_any == NULL) {
-        return NULL;
-    }
-    return forward_ndarray_method(self, args, kwds, callable_any);
-#endif
 }
 
 
-#if TARGET_OS_IPHONE
-#endif
 static PyObject *
 array_all(PyArrayObject *self, PyObject *args, PyObject *kwds)
 {
-    // iOS: we need the static variable outside of the function.
-#if !TARGET_OS_IPHONE
     NPY_FORWARD_NDARRAY_METHOD("_all");
-#else 
-    npy_cache_import("numpy.core._methods", "_all", &callable_all);
-    if (callable_all == NULL) {
-        return NULL;
-    }
-    return forward_ndarray_method(self, args, kwds, callable_all);
-#endif
 }
 
-#if TARGET_OS_IPHONE
-#endif
 static PyObject *
 array_stddev(PyArrayObject *self, PyObject *args, PyObject *kwds)
 {
-    // iOS: we need the static variable outside of the function.
-#if !TARGET_OS_IPHONE
     NPY_FORWARD_NDARRAY_METHOD("_std");
-#else 
-    npy_cache_import("numpy.core._methods", "_std", &callable_std);
-    if (callable_std == NULL) {
-        return NULL;
-    }
-    return forward_ndarray_method(self, args, kwds, callable_std);
-#endif
 }
 
-#if TARGET_OS_IPHONE
-#endif
 static PyObject *
 array_variance(PyArrayObject *self, PyObject *args, PyObject *kwds)
 {
-    // iOS: we need the static variable outside of the function.
-#if !TARGET_OS_IPHONE
     NPY_FORWARD_NDARRAY_METHOD("_var");
-#else 
-    npy_cache_import("numpy.core._methods", "_var", &callable_var);
-    if (callable_var == NULL) {
-        return NULL;
-    }
-    return forward_ndarray_method(self, args, kwds, callable_var);
-#endif
 }
 
 static PyObject *
@@ -2482,7 +2437,11 @@ array_compress(PyArrayObject *self, PyObject *args, PyObject *kwds)
     int axis = NPY_MAXDIMS;
     PyObject *condition;
     PyArrayObject *out = NULL;
+#if !TARGET_OS_IPHONE
     static char *kwlist[] = {"condition", "axis", "out", NULL};
+#else
+    static __thread char *kwlist[] = {"condition", "axis", "out", NULL};
+#endif
 
     if (!PyArg_ParseTupleAndKeywords(args, kwds, "O|O&O&:compress", kwlist,
                                      &condition,
@@ -2520,7 +2479,11 @@ array_trace(PyArrayObject *self, PyObject *args, PyObject *kwds)
     PyArray_Descr *dtype = NULL;
     PyArrayObject *out = NULL;
     int rtype;
+#if !TARGET_OS_IPHONE
     static char *kwlist[] = {"offset", "axis1", "axis2", "dtype", "out", NULL};
+#else
+    static __thread char *kwlist[] = {"offset", "axis1", "axis2", "dtype", "out", NULL};
+#endif
 
     if (!PyArg_ParseTupleAndKeywords(args, kwds, "|iiiO&O&:trace", kwlist,
                                      &offset,
@@ -2548,21 +2511,10 @@ array_trace(PyArrayObject *self, PyObject *args, PyObject *kwds)
 #undef _CHKTYPENUM
 
 
-#if TARGET_OS_IPHONE
-#endif
 static PyObject *
 array_clip(PyArrayObject *self, PyObject *args, PyObject *kwds)
 {
-    // iOS: we need the static variable outside of the function.
-#if !TARGET_OS_IPHONE
     NPY_FORWARD_NDARRAY_METHOD("_clip");
-#else 
-    npy_cache_import("numpy.core._methods", "_clip", &callable_clip);
-    if (callable_clip == NULL) {
-        return NULL;
-    }
-    return forward_ndarray_method(self, args, kwds, callable_clip);
-#endif
 }
 
 
@@ -2583,7 +2535,11 @@ static PyObject *
 array_diagonal(PyArrayObject *self, PyObject *args, PyObject *kwds)
 {
     int axis1 = 0, axis2 = 1, offset = 0;
+#if !TARGET_OS_IPHONE
     static char *kwlist[] = {"offset", "axis1", "axis2", NULL};
+#else
+    static __thread char *kwlist[] = {"offset", "axis1", "axis2", NULL};
+#endif
     PyArrayObject *ret;
 
     if (!PyArg_ParseTupleAndKeywords(args, kwds, "|iii:diagonal", kwlist,
@@ -2602,7 +2558,11 @@ static PyObject *
 array_flatten(PyArrayObject *self, PyObject *args, PyObject *kwds)
 {
     NPY_ORDER order = NPY_CORDER;
+#if !TARGET_OS_IPHONE
     static char *kwlist[] = {"order", NULL};
+#else
+    static __thread char *kwlist[] = {"order", NULL};
+#endif
 
     if (!PyArg_ParseTupleAndKeywords(args, kwds, "|O&:flatten", kwlist,
                             PyArray_OrderConverter, &order)) {
@@ -2616,7 +2576,11 @@ static PyObject *
 array_ravel(PyArrayObject *self, PyObject *args, PyObject *kwds)
 {
     NPY_ORDER order = NPY_CORDER;
+#if !TARGET_OS_IPHONE
     static char *kwlist[] = {"order", NULL};
+#else
+    static __thread char *kwlist[] = {"order", NULL};
+#endif
 
     if (!PyArg_ParseTupleAndKeywords(args, kwds, "|O&:ravel", kwlist,
                             PyArray_OrderConverter, &order)) {
@@ -2631,7 +2595,11 @@ array_round(PyArrayObject *self, PyObject *args, PyObject *kwds)
 {
     int decimals = 0;
     PyArrayObject *out = NULL;
+#if !TARGET_OS_IPHONE
     static char *kwlist[] = {"decimals", "out", NULL};
+#else
+    static __thread char *kwlist[] = {"decimals", "out", NULL};
+#endif
 
     if (!PyArg_ParseTupleAndKeywords(args, kwds, "|iO&:round", kwlist,
                                      &decimals,
@@ -2655,7 +2623,11 @@ array_round(PyArrayObject *self, PyObject *args, PyObject *kwds)
 static PyObject *
 array_setflags(PyArrayObject *self, PyObject *args, PyObject *kwds)
 {
+#if !TARGET_OS_IPHONE
     static char *kwlist[] = {"write", "align", "uic", NULL};
+#else
+    static __thread char *kwlist[] = {"write", "align", "uic", NULL};
+#endif
     PyObject *write_flag = Py_None;
     PyObject *align_flag = Py_None;
     PyObject *uic = Py_None;

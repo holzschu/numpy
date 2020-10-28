@@ -2105,7 +2105,11 @@ _nonzero_indices(PyObject *myBool, PyArrayObject **arrays)
     npy_bool *ptr;
     npy_intp coords[NPY_MAXDIMS], dims_m1[NPY_MAXDIMS];
     npy_intp *dptr[NPY_MAXDIMS];
+#if !TARGET_OS_IPHONE
     static npy_intp one = 1;
+#else
+    static __thread npy_intp one = 1;
+#endif
     NPY_BEGIN_THREADS_DEF;
 
     typecode=PyArray_DescrFromType(NPY_BOOL);
@@ -3369,3 +3373,12 @@ NPY_NO_EXPORT PyTypeObject PyArrayMapIter_Type = {
     .tp_dealloc = (destructor)arraymapiter_dealloc,
     .tp_flags = Py_TPFLAGS_DEFAULT,
 };
+
+#if TARGET_OS_IPHONE
+NPY_NO_EXPORT void reset_PyArrayMapIter_Type() {
+   PyArrayMapIter_Type.tp_name = "numpy.mapiter";
+   PyArrayMapIter_Type.tp_basicsize = sizeof(PyArrayMapIterObject);
+   PyArrayMapIter_Type.tp_dealloc = (destructor)arraymapiter_dealloc;
+   PyArrayMapIter_Type.tp_flags = Py_TPFLAGS_DEFAULT;
+}
+#endif

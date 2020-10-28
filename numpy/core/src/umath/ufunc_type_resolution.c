@@ -56,7 +56,11 @@ npy_casting_to_py_object(NPY_CASTING casting)
  */
 static int
 raise_binary_type_reso_error(PyUFuncObject *ufunc, PyArrayObject **operands) {
+#if !TARGET_OS_IPHONE
     static PyObject *exc_type = NULL;
+#else
+    static __thread PyObject *exc_type = NULL;
+#endif
     PyObject *exc_value;
 
     npy_cache_import(
@@ -88,7 +92,11 @@ static int
 raise_no_loop_found_error(
         PyUFuncObject *ufunc, PyArray_Descr **dtypes)
 {
+#if !TARGET_OS_IPHONE
     static PyObject *exc_type = NULL;
+#else
+    static __thread PyObject *exc_type = NULL;
+#endif
     PyObject *exc_value;
     PyObject *dtypes_tup;
     npy_intp i;
@@ -167,7 +175,11 @@ raise_input_casting_error(
         PyArray_Descr *to,
         npy_intp i)
 {
+#if !TARGET_OS_IPHONE
     static PyObject *exc_type = NULL;
+#else
+    static __thread PyObject *exc_type = NULL;
+#endif
     npy_cache_import(
         "numpy.core._exceptions", "_UFuncInputCastingError",
         &exc_type);
@@ -190,7 +202,11 @@ raise_output_casting_error(
         PyArray_Descr *to,
         npy_intp i)
 {
+#if !TARGET_OS_IPHONE
     static PyObject *exc_type = NULL;
+#else
+    static __thread PyObject *exc_type = NULL;
+#endif
     npy_cache_import(
         "numpy.core._exceptions", "_UFuncOutputCastingError",
         &exc_type);
@@ -1284,7 +1300,11 @@ PyUFunc_TrueDivisionTypeResolver(PyUFuncObject *ufunc,
                                  PyArray_Descr **out_dtypes)
 {
     int type_num1, type_num2;
+#if !TARGET_OS_IPHONE
     static PyObject *default_type_tup = NULL;
+#else
+    static __thread PyObject *default_type_tup = NULL;
+#endif
 
     /* Set default type for integer inputs to NPY_DOUBLE */
     if (default_type_tup == NULL) {

@@ -1349,7 +1349,11 @@ array_datetime_as_string(PyObject *NPY_UNUSED(self), PyObject *args,
     PyArray_Descr *op_dtypes[2] = {NULL, NULL};
     npy_uint32 flags, op_flags[2];
 
+#if !TARGET_OS_IPHONE
     static char *kwlist[] = {"arr", "unit", "timezone", "casting", NULL};
+#else
+    static __thread char *kwlist[] = {"arr", "unit", "timezone", "casting", NULL};
+#endif
 
     if(!PyArg_ParseTupleAndKeywords(args, kwds,
                                 "O|OOO&:datetime_as_string", kwlist,

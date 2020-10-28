@@ -75,14 +75,20 @@ NPY_NO_EXPORT int NPY_NUMUSERTYPES = 0;
 NPY_NO_EXPORT void release_buffer_info_cache(void);
 NPY_NO_EXPORT void npy_clean_caches(void);
 NPY_NO_EXPORT void PyUFuncOverride_ResetDefaultArrayUfunc(void);
-NPY_NO_EXPORT void clear_ufunc_object_caches(void);
-NPY_NO_EXPORT void clear_override_caches(void);
-NPY_NO_EXPORT void clear_ctors_caches(void);
-NPY_NO_EXPORT void clear_methods_caches(void);
-NPY_NO_EXPORT void clear_getset_caches(void);
 NPY_NO_EXPORT void clear_descriptor_caches(void);
+NPY_NO_EXPORT void clear_global_pytype_to_type_dict(void); 
+NPY_NO_EXPORT void clear_strfuncs_cache(void);
+// reset types to default values:
 NPY_NO_EXPORT void reset_PyArray_Type(void);
 NPY_NO_EXPORT void reset_PyUFunc_Type(void);
+NPY_NO_EXPORT void reset_NpyBusDayCalendar_Type(void);
+NPY_NO_EXPORT void reset_PyArrayFlags_Type(void);
+NPY_NO_EXPORT void reset_NpyIter_Type(void);
+NPY_NO_EXPORT void reset_PyArrayNeighborhoodIter_Type(void);
+NPY_NO_EXPORT void reset_PyArrayMultiIter_Type(void);
+NPY_NO_EXPORT void reset_PyArrayMapIter_Type(void);
+NPY_NO_EXPORT void reset_PyArrayIter_Type(void);
+NPY_NO_EXPORT void reset_PyArrayDTypeMeta_Type(void);
 #endif
 
 /*
@@ -785,7 +791,11 @@ PyArray_Concatenate(PyObject *op, int axis)
 static int
 _signbit_set(PyArrayObject *arr)
 {
+#if !TARGET_OS_IPHONE
     static char bitmask = (char) 0x80;
+#else 
+    static __thread char bitmask = (char) 0x80;
+#endif
     char *ptr;  /* points to the npy_byte to test */
     char byteorder;
     int elsize;
@@ -1487,7 +1497,11 @@ array_putmask(PyObject *NPY_UNUSED(module), PyObject *args, PyObject *kwds)
     PyObject *mask, *values;
     PyObject *array;
 
+#if !TARGET_OS_IPHONE
     static char *kwlist[] = {"arr", "mask", "values", NULL};
+#else 
+    static __thread char *kwlist[] = {"arr", "mask", "values", NULL};
+#endif
 
     if (!PyArg_ParseTupleAndKeywords(args, kwds, "O!OO:putmask", kwlist,
                 &PyArray_Type, &array, &mask, &values)) {
@@ -1682,8 +1696,13 @@ _array_fromobject(PyObject *NPY_UNUSED(ignored), PyObject *args, PyObject *kws)
 
     PyObject* array_function_result = NULL;
 
+#if !TARGET_OS_IPHONE
     static char *kwd[] = {"object", "dtype", "copy", "order", "subok",
                           "ndmin", "like", NULL};
+#else 
+    static __thread char *kwd[] = {"object", "dtype", "copy", "order", "subok",
+                          "ndmin", "like", NULL};
+#endif
 
     if (PyTuple_GET_SIZE(args) > 2) {
         PyErr_Format(PyExc_TypeError,
@@ -1874,7 +1893,11 @@ static PyObject *
 array_copyto(PyObject *NPY_UNUSED(ignored), PyObject *args, PyObject *kwds)
 {
 
+#if !TARGET_OS_IPHONE
     static char *kwlist[] = {"dst", "src", "casting", "where", NULL};
+#else
+    static __thread char *kwlist[] = {"dst", "src", "casting", "where", NULL};
+#endif
     PyObject *wheremask_in = NULL;
     PyArrayObject *dst = NULL, *src = NULL, *wheremask = NULL;
     NPY_CASTING casting = NPY_SAME_KIND_CASTING;
@@ -1919,7 +1942,11 @@ static PyObject *
 array_empty(PyObject *NPY_UNUSED(ignored), PyObject *args, PyObject *kwds)
 {
 
+#if !TARGET_OS_IPHONE
     static char *kwlist[] = {"shape", "dtype", "order", "like", NULL};
+#else
+    static __thread char *kwlist[] = {"shape", "dtype", "order", "like", NULL};
+#endif
     PyArray_Descr *typecode = NULL;
     PyArray_Dims shape = {NULL, 0};
     NPY_ORDER order = NPY_CORDER;
@@ -1971,7 +1998,11 @@ static PyObject *
 array_empty_like(PyObject *NPY_UNUSED(ignored), PyObject *args, PyObject *kwds)
 {
 
+#if !TARGET_OS_IPHONE
     static char *kwlist[] = {"prototype", "dtype", "order", "subok", "shape", NULL};
+#else
+    static __thread char *kwlist[] = {"prototype", "dtype", "order", "subok", "shape", NULL};
+#endif
     PyArrayObject *prototype = NULL;
     PyArray_Descr *dtype = NULL;
     NPY_ORDER order = NPY_KEEPORDER;
@@ -2013,7 +2044,11 @@ static PyObject *
 array_scalar(PyObject *NPY_UNUSED(ignored), PyObject *args, PyObject *kwds)
 {
 
+#if !TARGET_OS_IPHONE
     static char *kwlist[] = {"dtype", "obj", NULL};
+#else
+    static __thread char *kwlist[] = {"dtype", "obj", NULL};
+#endif
     PyArray_Descr *typecode;
     PyObject *obj = NULL, *tmpobj = NULL;
     int alloc = 0;
@@ -2095,7 +2130,11 @@ array_scalar(PyObject *NPY_UNUSED(ignored), PyObject *args, PyObject *kwds)
 static PyObject *
 array_zeros(PyObject *NPY_UNUSED(ignored), PyObject *args, PyObject *kwds)
 {
+#if !TARGET_OS_IPHONE
     static char *kwlist[] = {"shape", "dtype", "order", "like", NULL};
+#else
+    static __thread char *kwlist[] = {"shape", "dtype", "order", "like", NULL};
+#endif
     PyArray_Descr *typecode = NULL;
     PyArray_Dims shape = {NULL, 0};
     NPY_ORDER order = NPY_CORDER;
@@ -2170,7 +2209,11 @@ array_fromstring(PyObject *NPY_UNUSED(ignored), PyObject *args, PyObject *keywds
     Py_ssize_t nin = -1;
     char *sep = NULL;
     Py_ssize_t s;
+#if !TARGET_OS_IPHONE
     static char *kwlist[] = {"string", "dtype", "count", "sep", "like", NULL};
+#else
+    static __thread char *kwlist[] = {"string", "dtype", "count", "sep", "like", NULL};
+#endif
     PyObject *like = NULL;
     PyArray_Descr *descr = NULL;
     PyObject *array_function_result = NULL;
@@ -2210,7 +2253,11 @@ array_fromfile(PyObject *NPY_UNUSED(ignored), PyObject *args, PyObject *keywds)
     PyObject *err_type = NULL, *err_value = NULL, *err_traceback = NULL;
     char *sep = "";
     Py_ssize_t nin = -1;
+#if !TARGET_OS_IPHONE
     static char *kwlist[] = {"file", "dtype", "count", "sep", "offset", "like", NULL};
+#else
+    static __thread char *kwlist[] = {"file", "dtype", "count", "sep", "offset", "like", NULL};
+#endif
     PyObject *like = NULL;
     PyArray_Descr *type = NULL;
     PyObject *array_function_result = NULL;
@@ -2297,7 +2344,11 @@ array_fromiter(PyObject *NPY_UNUSED(ignored), PyObject *args, PyObject *keywds)
 {
     PyObject *iter;
     Py_ssize_t nin = -1;
+#if !TARGET_OS_IPHONE
     static char *kwlist[] = {"iter", "dtype", "count", "like", NULL};
+#else
+    static __thread char *kwlist[] = {"iter", "dtype", "count", "like", NULL};
+#endif
     PyObject *like = NULL;
     PyArray_Descr *descr = NULL;
     PyObject *array_function_result = NULL;
@@ -2323,7 +2374,11 @@ array_frombuffer(PyObject *NPY_UNUSED(ignored), PyObject *args, PyObject *keywds
 {
     PyObject *obj = NULL;
     Py_ssize_t nin = -1, offset = 0;
+#if !TARGET_OS_IPHONE
     static char *kwlist[] = {"buffer", "dtype", "count", "offset", "like", NULL};
+#else
+    static __thread char *kwlist[] = {"buffer", "dtype", "count", "offset", "like", NULL};
+#endif
     PyObject *like = NULL;
     PyArray_Descr *type = NULL;
     PyObject *array_function_result = NULL;
@@ -2357,7 +2412,11 @@ array_concatenate(PyObject *NPY_UNUSED(dummy), PyObject *args, PyObject *kwds)
     PyObject *casting_obj = NULL;
     PyObject *res;
     int axis = 0;
+#if !TARGET_OS_IPHONE
     static char *kwlist[] = {"seq", "axis", "out", "dtype", "casting", NULL};
+#else
+    static __thread char *kwlist[] = {"seq", "axis", "out", "dtype", "casting", NULL};
+#endif
     if (!PyArg_ParseTupleAndKeywords(args, kwds, "O|O&O$O&O:concatenate", kwlist,
                 &a0, PyArray_AxisConverter, &axis, &out,
                 PyArray_DescrConverter2, &dtype, &casting_obj)) {
@@ -2914,7 +2973,11 @@ array_correlate(PyObject *NPY_UNUSED(dummy), PyObject *args, PyObject *kwds)
 {
     PyObject *shape, *a0;
     int mode = 0;
+#if !TARGET_OS_IPHONE
     static char *kwlist[] = {"a", "v", "mode", NULL};
+#else
+    static __thread char *kwlist[] = {"a", "v", "mode", NULL};
+#endif
 
     if (!PyArg_ParseTupleAndKeywords(args, kwds, "OO|i:correlate", kwlist,
                 &a0, &shape, &mode)) {
@@ -2928,7 +2991,11 @@ array_correlate2(PyObject *NPY_UNUSED(dummy), PyObject *args, PyObject *kwds)
 {
     PyObject *shape, *a0;
     int mode = 0;
+#if !TARGET_OS_IPHONE
     static char *kwlist[] = {"a", "v", "mode", NULL};
+#else
+    static __thread char *kwlist[] = {"a", "v", "mode", NULL};
+#endif
 
     if (!PyArg_ParseTupleAndKeywords(args, kwds, "OO|i:correlate2", kwlist,
                 &a0, &shape, &mode)) {
@@ -2942,7 +3009,11 @@ array_arange(PyObject *NPY_UNUSED(ignored), PyObject *args, PyObject *kws) {
     PyObject *o_start = NULL, *o_stop = NULL, *o_step = NULL, *range=NULL;
     PyObject *like = NULL;
     PyObject *array_function_result = NULL;
+#if !TARGET_OS_IPHONE
     static char *kwd[] = {"start", "stop", "step", "dtype", "like", NULL};
+#else
+    static __thread char *kwd[] = {"start", "stop", "step", "dtype", "like", NULL};
+#endif
     PyArray_Descr *typecode = NULL;
 
     if (!PyArg_ParseTupleAndKeywords(args, kws, "O|OOO&$O:arange", kwd,
@@ -2989,7 +3060,11 @@ PyArray_GetNDArrayCFeatureVersion(void)
 static PyObject *
 array__get_ndarray_c_version(PyObject *NPY_UNUSED(dummy), PyObject *args, PyObject *kwds)
 {
+#if !TARGET_OS_IPHONE
     static char *kwlist[] = {NULL};
+#else
+    static __thread char *kwlist[] = {NULL};
+#endif
 
     if (!PyArg_ParseTupleAndKeywords(args, kwds, "", kwlist )) {
         return NULL;
@@ -3062,7 +3137,11 @@ array_set_string_function(PyObject *NPY_UNUSED(self), PyObject *args,
 {
     PyObject *op = NULL;
     int repr = 1;
+#if !TARGET_OS_IPHONE
     static char *kwlist[] = {"f", "repr", NULL};
+#else
+    static __thread char *kwlist[] = {"f", "repr", NULL};
+#endif
 
     if (!PyArg_ParseTupleAndKeywords(args, kwds, "|Oi:set_string_function", kwlist, &op, &repr)) {
         return NULL;
@@ -3303,7 +3382,11 @@ array_lexsort(PyObject *NPY_UNUSED(ignored), PyObject *args, PyObject *kwds)
 {
     int axis = -1;
     PyObject *obj;
+#if !TARGET_OS_IPHONE
     static char *kwlist[] = {"keys", "axis", NULL};
+#else
+    static __thread char *kwlist[] = {"keys", "axis", NULL};
+#endif
 
     if (!PyArg_ParseTupleAndKeywords(args, kwds, "O|i:lexsort", kwlist, &obj, &axis)) {
         return NULL;
@@ -3321,7 +3404,11 @@ array_can_cast_safely(PyObject *NPY_UNUSED(self), PyObject *args,
     npy_bool ret;
     PyObject *retobj = NULL;
     NPY_CASTING casting = NPY_SAFE_CASTING;
+#if !TARGET_OS_IPHONE
     static char *kwlist[] = {"from_", "to", "casting", NULL};
+#else
+    static __thread char *kwlist[] = {"from_", "to", "casting", NULL};
+#endif
 
     if(!PyArg_ParseTupleAndKeywords(args, kwds, "OO&|O&:can_cast", kwlist,
                 &from_obj,
@@ -3503,8 +3590,13 @@ static PyObject *
 dragon4_scientific(PyObject *NPY_UNUSED(dummy), PyObject *args, PyObject *kwds)
 {
     PyObject *obj;
+#if !TARGET_OS_IPHONE
     static char *kwlist[] = {"x", "precision", "unique", "sign", "trim",
                              "pad_left", "exp_digits", NULL};
+#else
+    static __thread char *kwlist[] = {"x", "precision", "unique", "sign", "trim",
+                             "pad_left", "exp_digits", NULL};
+#endif
     int precision=-1, pad_left=-1, exp_digits=-1;
     char *trimstr=NULL;
     DigitMode digit_mode;
@@ -3559,8 +3651,13 @@ static PyObject *
 dragon4_positional(PyObject *NPY_UNUSED(dummy), PyObject *args, PyObject *kwds)
 {
     PyObject *obj;
+#if !TARGET_OS_IPHONE
     static char *kwlist[] = {"x", "precision", "unique", "fractional",
                              "sign", "trim", "pad_left", "pad_right", NULL};
+#else
+    static __thread char *kwlist[] = {"x", "precision", "unique", "fractional",
+                             "sign", "trim", "pad_left", "pad_right", NULL};
+#endif
     int precision=-1, pad_left=-1, pad_right=-1;
     char *trimstr=NULL;
     CutoffMode cutoff_mode;
@@ -3613,7 +3710,11 @@ format_longfloat(PyObject *NPY_UNUSED(dummy), PyObject *args, PyObject *kwds)
 {
     PyObject *obj;
     unsigned int precision;
+#if !TARGET_OS_IPHONE
     static char *kwlist[] = {"x", "precision", NULL};
+#else
+    static __thread char *kwlist[] = {"x", "precision", NULL};
+#endif
 
     if (!PyArg_ParseTupleAndKeywords(args, kwds, "OI:format_longfloat", kwlist,
                 &obj, &precision)) {
@@ -3639,8 +3740,13 @@ compare_chararrays(PyObject *NPY_UNUSED(dummy), PyObject *args, PyObject *kwds)
     char *cmp_str;
     Py_ssize_t strlength;
     PyObject *res = NULL;
+#if !TARGET_OS_IPHONE
     static char msg[] = "comparison must be '==', '!=', '<', '>', '<=', '>='";
     static char *kwlist[] = {"a1", "a2", "cmp", "rstrip", NULL};
+#else
+    static __thread char msg[] = "comparison must be '==', '!=', '<', '>', '<=', '>='";
+    static __thread char *kwlist[] = {"a1", "a2", "cmp", "rstrip", NULL};
+#endif
 
     if (!PyArg_ParseTupleAndKeywords(args, kwds, "OOs#O&:compare_chararrays",
                 kwlist,
@@ -3987,10 +4093,6 @@ _PyArray_GetSigintBuf(void)
 #endif
 
 
-// iOS: move static variables outside of functions
-#if TARGET_OS_IPHONE
-static PyObject *too_hard_cls = NULL;
-#endif
 static PyObject *
 array_shares_memory_impl(PyObject *args, PyObject *kwds, Py_ssize_t default_max_work,
                          int raise_exceptions)
@@ -4000,11 +4102,15 @@ array_shares_memory_impl(PyObject *args, PyObject *kwds, Py_ssize_t default_max_
     PyArrayObject * self = NULL;
     PyArrayObject * other = NULL;
     PyObject *max_work_obj = NULL;
-    static char *kwlist[] = {"self", "other", "max_work", NULL};
 
     mem_overlap_t result;
 #if !TARGET_OS_IPHONE
+    static char *kwlist[] = {"self", "other", "max_work", NULL};
     static PyObject *too_hard_cls = NULL;
+#else
+	// iOS: need caching system on a per-thread basis
+    static __thread char *kwlist[] = {"self", "other", "max_work", NULL};
+    static __thread PyObject *too_hard_cls = NULL;
 #endif
     Py_ssize_t max_work;
     NPY_BEGIN_THREADS_DEF;
@@ -4127,7 +4233,11 @@ array_may_share_memory(PyObject *NPY_UNUSED(ignored), PyObject *args, PyObject *
 static PyObject *
 normalize_axis_index(PyObject *NPY_UNUSED(self), PyObject *args, PyObject *kwds)
 {
+#if !TARGET_OS_IPHONE
     static char *kwlist[] = {"axis", "ndim", "msg_prefix", NULL};
+#else
+    static __thread char *kwlist[] = {"axis", "ndim", "msg_prefix", NULL};
+#endif
     int axis;
     int ndim;
     PyObject *msg_prefix = Py_None;
@@ -4446,6 +4556,7 @@ setup_scalartypes(PyObject *NPY_UNUSED(dict))
     DUAL_INHERIT(CDouble, Complex, ComplexFloating);
     SINGLE_INHERIT(CLongDouble, ComplexFloating);
 
+
     DUAL_INHERIT2(String, String, Character);
     DUAL_INHERIT2(Unicode, Unicode, Character);
 
@@ -4526,18 +4637,10 @@ multiarray_umath_free(PyObject *m)
     release_buffer_info_cache();
     npy_clean_caches();
     PyUFuncOverride_ResetDefaultArrayUfunc();
-    // npy_cache_import: ufunc_object:
-    clear_ufunc_object_caches();
-    // npy_cache_import: internal
-    math_gcd_func = NULL;
-    internal_gcd_func = NULL;
-    too_hard_cls = NULL; 
-    // npy_cache_import: override.c:
-    clear_override_caches();
-    clear_ctors_caches();
-    clear_methods_caches();
-    clear_getset_caches();
-    clear_descriptor_caches();
+    // npy_cache_import: strfuncs.c:
+    clear_strfuncs_cache();
+    // array_coercion.c
+    clear_global_pytype_to_type_dict(); 
 }
 #endif
 
@@ -4629,9 +4732,18 @@ PyMODINIT_FUNC PyInit__multiarray_umath(void) {
 
     // iOS: before any access, we reset PyArrayType and PyUFunc_Type to their default values.
 #if TARGET_OS_IPHONE
+	// reset these types is essential (crash if we don't)
     reset_PyArray_Type();
     reset_PyUFunc_Type();
-    // TODO: reset other types:
+    // reset these types is not essential, but done for completeness
+	reset_NpyBusDayCalendar_Type();
+	reset_PyArrayFlags_Type();
+	reset_NpyIter_Type();
+	reset_PyArrayNeighborhoodIter_Type();
+	reset_PyArrayMultiIter_Type();
+	reset_PyArrayMapIter_Type();
+	reset_PyArrayIter_Type();
+	reset_PyArrayDTypeMeta_Type();
 #endif
     /*
      * Before calling PyType_Ready, initialize the tp_hash slot in

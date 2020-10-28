@@ -236,11 +236,6 @@ normalize___call___args(PyUFuncObject *ufunc, PyObject *args,
     return nkwds == 0 ? 0 : normalize_signature_keyword(*normal_kwds);
 }
 
-// iOS: move static variables outside of function
-#if TARGET_OS_IPHONE
-static PyObject *NoValue = NULL;
-#endif
-
 static int
 normalize_reduce_args(PyUFuncObject *ufunc, PyObject *args,
                       PyObject **normal_args, PyObject **normal_kwds)
@@ -253,9 +248,13 @@ normalize_reduce_args(PyUFuncObject *ufunc, PyObject *args,
     PyObject *obj;
 #if !TARGET_OS_IPHONE
     static PyObject *NoValue = NULL;
-#endif
     static char *kwlist[] = {"array", "axis", "dtype", "out", "keepdims",
                              "initial", "where"};
+#else
+    static __thread PyObject *NoValue = NULL;
+    static __thread char *kwlist[] = {"array", "axis", "dtype", "out", "keepdims",
+                             "initial", "where"};
+#endif
 
     npy_cache_import("numpy", "_NoValue", &NoValue);
     if (NoValue == NULL) return -1;
@@ -312,7 +311,11 @@ normalize_accumulate_args(PyUFuncObject *ufunc, PyObject *args,
     npy_intp nargs = PyTuple_GET_SIZE(args);
     npy_intp i;
     PyObject *obj;
-    static char *kwlist[] = {"array", "axis", "dtype", "out", "keepdims"};
+#if !TARGET_OS_IPHONE
+	static char *kwlist[] = {"array", "axis", "dtype", "out", "keepdims"};
+#else
+	static __thread char *kwlist[] = {"array", "axis", "dtype", "out", "keepdims"};
+#endif
 
     if (nargs < 1 || nargs > 4) {
         PyErr_Format(PyExc_TypeError,
@@ -363,7 +366,11 @@ normalize_reduceat_args(PyUFuncObject *ufunc, PyObject *args,
     npy_intp i;
     npy_intp nargs = PyTuple_GET_SIZE(args);
     PyObject *obj;
+#if !TARGET_OS_IPHONE
     static char *kwlist[] = {"array", "indices", "axis", "dtype", "out"};
+#else
+    static __thread char *kwlist[] = {"array", "indices", "axis", "dtype", "out"};
+#endif
 
     if (nargs < 2 || nargs > 5) {
         PyErr_Format(PyExc_TypeError,
@@ -453,16 +460,6 @@ normalize_at_args(PyUFuncObject *ufunc, PyObject *args,
     *normal_args = PyTuple_GetSlice(args, 0, nargs);
     return (*normal_args == NULL);
 }
-
-// iOS: move static variables out of functions:
-#if TARGET_OS_IPHONE
-static PyObject *errmsg_formatter = NULL;
-
-NPY_NO_EXPORT void clear_override_caches() {
-    NoValue = NULL;
-    errmsg_formatter = NULL;
-}
-#endif
 
 /*
  * Check a set of args for the `__array_ufunc__` method.  If more than one of
@@ -691,6 +688,8 @@ PyUFunc_CheckOverride(PyUFuncObject *ufunc, char *method,
             /* No acceptable override found. */
 #if !TARGET_OS_IPHONE
             static PyObject *errmsg_formatter = NULL;
+#else
+            static __thread PyObject *errmsg_formatter = NULL;
 #endif
             PyObject *errmsg;
 

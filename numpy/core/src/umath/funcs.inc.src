@@ -163,7 +163,11 @@ static PyObject *internal_gcd_func = NULL;
 
 static PyObject *
 npy_ObjectFloor(PyObject *obj) {
+#if !TARGET_OS_IPHONE
     static PyObject *math_floor_func = NULL;
+#else
+    static __thread PyObject *math_floor_func = NULL;
+#endif
 
     npy_cache_import("math", "floor", &math_floor_func);
     if (math_floor_func == NULL) {
@@ -174,7 +178,11 @@ npy_ObjectFloor(PyObject *obj) {
 
 static PyObject *
 npy_ObjectCeil(PyObject *obj) {
+#if !TARGET_OS_IPHONE
     static PyObject *math_ceil_func = NULL;
+#else
+    static __thread PyObject *math_ceil_func = NULL;
+#endif
 
     npy_cache_import("math", "ceil", &math_ceil_func);
     if (math_ceil_func == NULL) {
@@ -185,7 +193,11 @@ npy_ObjectCeil(PyObject *obj) {
 
 static PyObject *
 npy_ObjectTrunc(PyObject *obj) {
+#if !TARGET_OS_IPHONE
     static PyObject *math_trunc_func = NULL;
+#else
+    static __thread PyObject *math_trunc_func = NULL;
+#endif
 
     npy_cache_import("math", "trunc", &math_trunc_func);
     if (math_trunc_func == NULL) {
@@ -203,6 +215,8 @@ npy_ObjectGCD(PyObject *i1, PyObject *i2)
     {
 #if !TARGET_OS_IPHONE
         static PyObject *math_gcd_func = NULL;
+#else
+        static __thread PyObject *math_gcd_func = NULL;
 #endif
         npy_cache_import("math", "gcd", &math_gcd_func);
         if (math_gcd_func == NULL) {
@@ -220,6 +234,8 @@ npy_ObjectGCD(PyObject *i1, PyObject *i2)
     {
 #if !TARGET_OS_IPHONE
         static PyObject *internal_gcd_func = NULL;
+#else
+        static __thread PyObject *internal_gcd_func = NULL;
 #endif
         npy_cache_import("numpy.core._internal", "_gcd", &internal_gcd_func);
         if (internal_gcd_func == NULL) {

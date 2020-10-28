@@ -4146,6 +4146,37 @@ static PyArray_Descr @from@_Descr = {
     -1,
 };
 
+
+#if TARGET_OS_IPHONE
+    /* iOS: reinitialize the @from@_Descr type when the library is reloaded */
+    /* TODO: reinitialize  &Py@NAME@ArrType_Type */ 
+static void reinit_@from@_Descr() {
+    /* PyObject_HEAD_INIT */
+#ifdef Py_TRACE_REFS
+	@from@_Descr.ob_base._ob_next = 0;
+	@from@_Descr.ob_base._ob_prev = 0;
+#endif
+	@from@_Descr.ob_base.ob_refcnt = 1; 
+	@from@_Descr.ob_base.ob_type = &PyArrayDescr_Type;
+	@from@_Descr.typeobj = &Py@NAME@ArrType_Type;
+    @from@_Descr.kind = NPY_@from@LTR;
+    @from@_Descr.type = NPY_@from@LTR;
+    @from@_Descr.byteorder = '@endian@';
+    @from@_Descr.flags = @flags@;
+    @from@_Descr.type_num =  NPY_@from@;
+    @from@_Descr.elsize = 0;
+    @from@_Descr.alignment = _ALIGN(@align@);
+    @from@_Descr.subarray = NULL;
+    @from@_Descr.fields = NULL;
+    @from@_Descr.names = NULL;
+    @from@_Descr.f = &_Py@NAME@_ArrFuncs;
+    @from@_Descr.metadata = NULL;
+    @from@_Descr.c_metadata = NULL;
+    @from@_Descr.hash = -1;
+}
+
+#endif
+
 /**end repeat**/
 
 /**begin repeat
@@ -4296,6 +4327,36 @@ NPY_NO_EXPORT PyArray_Descr @from@_Descr = {
     -1,
 };
 
+#if TARGET_OS_IPHONE
+    /* iOS: reinitialize the @from@_Descr type when the library is reloaded */
+    /* TODO: reinitialize  &Py@NAME@ArrType_Type */ 
+static void reinit_@from@_Descr() {
+    /* PyObject_HEAD_INIT */
+#ifdef Py_TRACE_REFS
+	@from@_Descr.ob_base._ob_next = 0;
+	@from@_Descr.ob_base._ob_prev = 0;
+#endif
+	@from@_Descr.ob_base.ob_refcnt = 1; 
+	@from@_Descr.ob_base.ob_type = &PyArrayDescr_Type;
+	@from@_Descr.typeobj = &Py@NAME@ArrType_Type;
+    @from@_Descr.kind = NPY_@kind@LTR;
+    @from@_Descr.type = NPY_@from@LTR;
+    @from@_Descr.byteorder = '@endian@';
+    @from@_Descr.flags = @isobject@;
+    @from@_Descr.type_num =  NPY_@from@;
+    @from@_Descr.elsize = sizeof(@fromtype@);
+    @from@_Descr.alignment = _ALIGN(@fromtype@);
+    @from@_Descr.subarray = NULL;
+    @from@_Descr.fields = NULL;
+    @from@_Descr.names = NULL;
+    @from@_Descr.f = &_Py@NAME@_ArrFuncs;
+    @from@_Descr.metadata = NULL;
+    @from@_Descr.c_metadata = NULL;
+    @from@_Descr.hash = -1;
+}
+
+#endif
+
 /**end repeat**/
 
 #define _MAX_LETTER 128
@@ -4327,6 +4388,61 @@ static PyArray_Descr *_builtin_descrs[] = {
     &TIMEDELTA_Descr,
     &HALF_Descr
 };
+
+#if TARGET_OS_IPHONE
+static void reinit_builtin_descrs() {
+    reinit_BOOL_Descr();
+    reinit_BYTE_Descr();
+    reinit_UBYTE_Descr();
+    reinit_SHORT_Descr();
+    reinit_USHORT_Descr();
+    reinit_INT_Descr();
+    reinit_UINT_Descr();
+    reinit_LONG_Descr();
+    reinit_ULONG_Descr();
+    reinit_LONGLONG_Descr();
+    reinit_ULONGLONG_Descr();
+    reinit_FLOAT_Descr();
+    reinit_DOUBLE_Descr();
+    reinit_LONGDOUBLE_Descr();
+    reinit_CFLOAT_Descr();
+    reinit_CDOUBLE_Descr();
+    reinit_CLONGDOUBLE_Descr();
+    reinit_OBJECT_Descr();
+    reinit_STRING_Descr();
+    reinit_UNICODE_Descr();
+    reinit_VOID_Descr();
+    reinit_DATETIME_Descr();
+    reinit_TIMEDELTA_Descr();
+    reinit_HALF_Descr();
+
+	_builtin_descrs[0] = &BOOL_Descr;
+	_builtin_descrs[1] = &BYTE_Descr;
+	_builtin_descrs[2] = &UBYTE_Descr;
+	_builtin_descrs[3] = &SHORT_Descr;
+	_builtin_descrs[4] = &USHORT_Descr;
+	_builtin_descrs[5] = &INT_Descr;
+	_builtin_descrs[6] = &UINT_Descr;
+	_builtin_descrs[7] = &LONG_Descr;
+	_builtin_descrs[8] = &ULONG_Descr;
+	_builtin_descrs[9] = &LONGLONG_Descr;
+	_builtin_descrs[10] = &ULONGLONG_Descr;
+	_builtin_descrs[11] = &FLOAT_Descr;
+	_builtin_descrs[12] = &DOUBLE_Descr;
+	_builtin_descrs[13] = &LONGDOUBLE_Descr;
+	_builtin_descrs[14] = &CFLOAT_Descr;
+	_builtin_descrs[15] = &CDOUBLE_Descr;
+	_builtin_descrs[16] = &CLONGDOUBLE_Descr;
+	_builtin_descrs[17] = &OBJECT_Descr;
+	_builtin_descrs[18] = &STRING_Descr;
+	_builtin_descrs[19] = &UNICODE_Descr;
+	_builtin_descrs[20] = &VOID_Descr;
+	_builtin_descrs[21] = &DATETIME_Descr;
+	_builtin_descrs[22] = &TIMEDELTA_Descr;
+	_builtin_descrs[23] = &HALF_Descr;
+}
+#endif
+
 
 /*NUMPY_API
  * Get the PyArray_Descr structure for a type.
@@ -4419,6 +4535,11 @@ set_typeinfo(PyObject *dict)
 {
     PyObject *infodict, *s;
     int i;
+
+#if TARGET_OS_IPHONE
+    // iOS: when reloading the library, make sure all pointers are reinitialized.
+    reinit_builtin_descrs();
+#endif
 
     PyArray_Descr *dtype;
     PyObject *cobj, *key;

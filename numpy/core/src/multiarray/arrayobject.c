@@ -1582,8 +1582,13 @@ PyArray_CheckStrides(int elsize, int nd, npy_intp numbytes, npy_intp offset,
 static PyObject *
 array_new(PyTypeObject *subtype, PyObject *args, PyObject *kwds)
 {
+#if !TARGET_OS_IPHONE
     static char *kwlist[] = {"shape", "dtype", "buffer", "offset", "strides",
                              "order", NULL};
+#else
+    static __thread char *kwlist[] = {"shape", "dtype", "buffer", "offset", "strides",
+                             "order", NULL};
+#endif
     PyArray_Descr *descr = NULL;
     int itemsize;
     PyArray_Dims dims = {NULL, 0};
@@ -1777,13 +1782,10 @@ NPY_NO_EXPORT void reset_PyArray_Type(void)
     PyArray_Type.tp_basicsize  = NPY_SIZEOF_PYARRAYOBJECT;
     PyArray_Type.tp_itemsize  = 0;
     PyArray_Type.tp_dealloc  = (destructor)array_dealloc;
+    PyArray_Type.tp_vectorcall_offset = 0; 
     PyArray_Type.tp_getattr  = 0;
     PyArray_Type.tp_setattr  = 0;
-#if defined(NPY_PY3K)
-    // PyArray_Type.tp_reserved  = 0;
-#else
-    PyArray_Type.tp_compare  = 0;
-#endif
+    PyArray_Type.tp_as_async = 0; 
     PyArray_Type.tp_repr  = (reprfunc)array_repr;
     PyArray_Type.tp_as_number  = &array_as_number;
     PyArray_Type.tp_as_sequence  = &array_as_sequence;
@@ -1794,12 +1796,7 @@ NPY_NO_EXPORT void reset_PyArray_Type(void)
     PyArray_Type.tp_getattro  = (getattrofunc)0;
     PyArray_Type.tp_setattro  = (setattrofunc)0;
     PyArray_Type.tp_as_buffer  = &array_as_buffer;
-    PyArray_Type.tp_flags  = (Py_TPFLAGS_DEFAULT
-#if !defined(NPY_PY3K)
-                              | Py_TPFLAGS_CHECKTYPES
-                              | Py_TPFLAGS_HAVE_NEWBUFFER
-#endif
-                              | Py_TPFLAGS_BASETYPE);
+    PyArray_Type.tp_flags  = (Py_TPFLAGS_DEFAULT | Py_TPFLAGS_BASETYPE);
     PyArray_Type.tp_doc  = 0;
     PyArray_Type.tp_traverse  = (traverseproc)0;
     PyArray_Type.tp_clear  = (inquiry)0;
@@ -1827,4 +1824,6 @@ NPY_NO_EXPORT void reset_PyArray_Type(void)
     PyArray_Type.tp_weaklist  = 0;
     PyArray_Type.tp_del  = 0;
     PyArray_Type.tp_version_tag  = 0;
+    PyArray_Type.tp_finalize = 0;
+    PyArray_Type.tp_vectorcall = 0;
 }

@@ -1190,7 +1190,11 @@ static int
 static int
 emit_complexwarning(void)
 {
+#if !TARGET_OS_IPHONE
     static PyObject *cls = NULL;
+#else
+    static __thread PyObject *cls = NULL;
+#endif
     npy_cache_import("numpy.core", "ComplexWarning", &cls);
     if (cls == NULL) {
         return -1;
@@ -1386,6 +1390,40 @@ static PyNumberMethods @name@_as_number = {
 };
 /**end repeat**/
 
+/**begin repeat
+ *  #name = byte, ubyte, short, ushort, int, uint,
+ *          long, ulong, longlong, ulonglong,
+ *          half, float, double, longdouble,
+ *          cfloat, cdouble, clongdouble#
+**/
+static void init_@name@_as_number()
+{
+     /* iOS addition: reinitialize pointers to function at startup time */
+    @name@_as_number.nb_add = (binaryfunc)@name@_add;
+    @name@_as_number.nb_subtract = (binaryfunc)@name@_subtract;
+    @name@_as_number.nb_multiply = (binaryfunc)@name@_multiply;
+    @name@_as_number.nb_remainder = (binaryfunc)@name@_remainder;
+    @name@_as_number.nb_divmod = (binaryfunc)@name@_divmod;
+    @name@_as_number.nb_power = (ternaryfunc)@name@_power;
+    @name@_as_number.nb_negative = (unaryfunc)@name@_negative;
+    @name@_as_number.nb_positive = (unaryfunc)@name@_positive;
+    @name@_as_number.nb_absolute = (unaryfunc)@name@_absolute;
+    @name@_as_number.nb_bool = (inquiry)@name@_bool;
+    @name@_as_number.nb_invert = (unaryfunc)@name@_invert;
+    @name@_as_number.nb_lshift = (binaryfunc)@name@_lshift;
+    @name@_as_number.nb_rshift = (binaryfunc)@name@_rshift;
+    @name@_as_number.nb_and = (binaryfunc)@name@_and;
+    @name@_as_number.nb_xor = (binaryfunc)@name@_xor;
+    @name@_as_number.nb_or = (binaryfunc)@name@_or;
+    @name@_as_number.nb_int = (unaryfunc)@name@_int;
+    @name@_as_number.nb_float = (unaryfunc)@name@_float;
+    @name@_as_number.nb_floor_divide = (binaryfunc)@name@_floor_divide;
+    @name@_as_number.nb_true_divide = (binaryfunc)@name@_true_divide;
+    /* TODO: This struct/initialization should not be split between files */
+    @name@_as_number.nb_index = (unaryfunc)NULL;  /* set in add_scalarmath below */
+}
+/**end repeat**/
+
 NPY_NO_EXPORT void
 add_scalarmath(void)
 {
@@ -1399,6 +1437,8 @@ add_scalarmath(void)
      *          Half, Float, Double, LongDouble,
      *          CFloat, CDouble, CLongDouble#
      **/
+     /* iOS addition: need to reinitialize pointers to function at startup time */
+    init_@name@_as_number();
     @name@_as_number.nb_index = Py@NAME@ArrType_Type.tp_as_number->nb_index;
     Py@NAME@ArrType_Type.tp_as_number = &(@name@_as_number);
     Py@NAME@ArrType_Type.tp_richcompare = @name@_richcompare;

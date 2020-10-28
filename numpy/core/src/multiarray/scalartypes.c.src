@@ -453,31 +453,19 @@ _void_to_hex(const char* argbuf, const Py_ssize_t arglen,
     return retval;
 }
 
-// iOS: move static variables outside of function, so
-// we can clear them when we leave. And change name since
-// reprfunc is a type name.
-#if TARGET_OS_IPHONE
-static PyObject *reprfunc_cache = NULL;
-#endif
-
 static PyObject *
 _void_scalar_repr(PyObject *obj) {
 #if !TARGET_OS_IPHONE
     static PyObject *reprfunc = NULL;
+#else 
+    static __thread PyObject *reprfunc = NULL;
+#endif
     npy_cache_import("numpy.core.arrayprint",
                      "_void_scalar_repr", &reprfunc);
     if (reprfunc == NULL) {
         return NULL;
     }
     return PyObject_CallFunction(reprfunc, "O", obj);
-#else
-    npy_cache_import("numpy.core.arrayprint",
-                     "_void_scalar_repr", &reprfunc_cache);
-    if (reprfunc_cache == NULL) {
-        return NULL;
-    }
-    return PyObject_CallFunction(reprfunc_cache, "O", obj);
-#endif
 }
 
 static PyObject *
@@ -1500,7 +1488,11 @@ static PyObject *
 gentype_byteswap(PyObject *self, PyObject *args, PyObject *kwds)
 {
     npy_bool inplace = NPY_FALSE;
+#if !TARGET_OS_IPHONE
     static char *kwlist[] = {"inplace", NULL};
+#else
+    static __thread char *kwlist[] = {"inplace", NULL};
+#endif
 
     if (!PyArg_ParseTupleAndKeywords(args, kwds, "|O&:byteswap", kwlist,
                                      PyArray_BoolConverter, &inplace)) {
@@ -1564,7 +1556,11 @@ gentype_@name@(PyObject *self, PyObject *args, PyObject *kwds)
 static PyObject *
 @name@type_dunder_round(PyObject *self, PyObject *args, PyObject *kwds)
 {
+#if !TARGET_OS_IPHONE
     static char *kwlist[] = {"ndigits", NULL};
+#else
+    static __thread char *kwlist[] = {"ndigits", NULL};
+#endif 
     PyObject *ndigits = Py_None;
     if (!PyArg_ParseTupleAndKeywords(args, kwds, "|O:__round__", kwlist, &ndigits)) {
         return NULL;
@@ -2421,7 +2417,11 @@ static int
     }
     Py@Name@ScalarObject *scalar = (Py@Name@ScalarObject *)self;
 
+#if !TARGET_OS_IPHONE
     static char fmt[3] = "@fmt@";
+#else
+    static __thread char fmt[3] = "@fmt@";
+#endif
 
     view->ndim = 0;
     view->len = sizeof(scalar->obval);
@@ -2529,7 +2529,11 @@ static int
     view->ndim = 1;
     view->len = 8;
     view->itemsize = 1;
+#if !TARGET_OS_IPHONE
     static Py_ssize_t length = 8;
+#else
+    static __thread Py_ssize_t length = 8;
+#endif
     view->shape = &length;
     view->strides = NULL;
     view->suboffsets = NULL;
@@ -2593,7 +2597,11 @@ object_arrtype_alloc(PyTypeObject *type, Py_ssize_t items)
      * Object scalars should not actually exist, if they exist we should
      * consider it to be a bug.
      */
+#if !TARGET_OS_IPHONE
     static PyObject *visibleDeprecationWarning = NULL;
+#else
+    static __thread PyObject *visibleDeprecationWarning = NULL;
+#endif
     npy_cache_import("numpy", "VisibleDeprecationWarning",
                      &visibleDeprecationWarning);
     if (visibleDeprecationWarning == NULL) {
@@ -3810,6 +3818,47 @@ initialize_numeric_types(void)
     PyGenericArrType_Type.tp_alloc = gentype_alloc;
     PyGenericArrType_Type.tp_free = (freefunc)gentype_free;
     PyGenericArrType_Type.tp_richcompare = gentype_richcompare;
+#if TARGET_OS_IPHONE
+    // Reinitialize all the other fields too: 
+    PyGenericArrType_Type.tp_base = NULL; // essential
+    PyGenericArrType_Type.tp_dict = NULL; // probably useful
+    // The other are just to be sure:
+    PyGenericArrType_Type.tp_doc = NULL;
+	PyGenericArrType_Type.tp_getattr = NULL;
+	PyGenericArrType_Type.tp_setattr = NULL;
+	PyGenericArrType_Type.tp_as_async = NULL;
+	PyGenericArrType_Type.tp_repr = NULL;
+	PyGenericArrType_Type.tp_as_sequence = NULL;
+	PyGenericArrType_Type.tp_hash = NULL;
+	PyGenericArrType_Type.tp_call = NULL;
+	PyGenericArrType_Type.tp_str = NULL;
+	PyGenericArrType_Type.tp_getattro = NULL;
+	PyGenericArrType_Type.tp_setattro = NULL;
+	PyGenericArrType_Type.tp_as_buffer = NULL;
+	PyGenericArrType_Type.tp_doc = NULL;
+	PyGenericArrType_Type.tp_traverse = NULL;
+	PyGenericArrType_Type.tp_weaklistoffset = NULL;
+	PyGenericArrType_Type.tp_iter = NULL;
+	PyGenericArrType_Type.tp_iternext = NULL;
+	PyGenericArrType_Type.tp_members = NULL;
+	PyGenericArrType_Type.tp_descr_get = NULL;
+	PyGenericArrType_Type.tp_descr_set = NULL;
+	PyGenericArrType_Type.tp_dictoffset = NULL;
+	PyGenericArrType_Type.tp_init = NULL;
+	PyGenericArrType_Type.tp_is_gc = NULL;
+
+    // Reinitialize the other types too: 
+    /**begin repeat
+     * #NAME = Bool, Byte, Short, Int, Long, LongLong, UByte, UShort, UInt,
+     *         ULong, ULongLong, Half, Float, Double, LongDouble, CFloat,
+     *         CDouble, CLongDouble, String, Unicode, Void, Object, Datetime,
+     *         Timedelta#
+     */
+    Py@NAME@ArrType_Type.tp_base = NULL; // essential
+    Py@NAME@ArrType_Type.tp_dict = NULL; // probably useful
+    Py@NAME@ArrType_Type.tp_as_number = NULL; // Will be overwriten for most types
+    /**end repeat**/
+#endif
 
     PyBoolArrType_Type.tp_as_number = &bool_arrtype_as_number;
     /*
@@ -3827,7 +3876,6 @@ initialize_numeric_types(void)
     @name@_arrtype_as_number = gentype_as_number;
     Py@NAME@ArrType_Type.tp_as_number = &@name@_arrtype_as_number;
     Py@NAME@ArrType_Type.tp_as_number->nb_index = (unaryfunc)@name@_index;
-
     /**end repeat**/
 
     /**begin repeat
@@ -3838,7 +3886,6 @@ initialize_numeric_types(void)
      */
     @name@_arrtype_as_number = gentype_as_number;
     Py@NAME@ArrType_Type.tp_as_number = &@name@_arrtype_as_number;
-
     /**end repeat**/
 
     PyBoolArrType_Type.tp_as_number->nb_index = (unaryfunc)bool_index;

@@ -26,6 +26,9 @@ them.
 #pragma GCC diagnostic ignored "-Wparentheses"
 #endif
 
+#if TARGET_OS_IPHONE
+#define static static __thread
+#endif
 
 /* Table of constant values */
 

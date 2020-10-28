@@ -459,6 +459,7 @@ dtypemeta_wrap_legacy_descriptor(PyArray_Descr *descr)
         PyErr_Format(PyExc_RuntimeError,
                 "During creation/wrapping of legacy DType, the original class "
                 "was not PyArrayDescr_Type (it is replaced in this step).");
+        fprintf(stderr, "Inside dtypemeta_wrap_legacy_descriptor, Py_TYPE(descr) != &PyArrayDescr_Type)\n");
         return -1;
     }
 
@@ -496,6 +497,7 @@ dtypemeta_wrap_legacy_descriptor(PyArray_Descr *descr)
     PyArray_DTypeMeta *dtype_class = malloc(sizeof(PyArray_DTypeMeta));
     if (dtype_class == NULL) {
         PyDataMem_FREE(tp_name);
+        fprintf(stderr, "Inside dtypemeta_wrap_legacy_descriptor, dtype_class == NULL\n");
         return -1;
     }
     /*
@@ -507,6 +509,7 @@ dtypemeta_wrap_legacy_descriptor(PyArray_Descr *descr)
      * Any Type slots need to be fixed before PyType_Ready, although most
      * will be inherited automatically there.
      */
+#if !TARGET_OS_IPHONE
     static PyArray_DTypeMeta prototype = {
         {{
             PyVarObject_HEAD_INIT(&PyArrayDTypeMeta_Type, 0)
@@ -520,12 +523,28 @@ dtypemeta_wrap_legacy_descriptor(PyArray_Descr *descr)
         .abstract = 0, /* this is a concrete DType */
         /* Further fields are not common between DTypes */
     };
+#else
+    static __thread PyArray_DTypeMeta prototype = {
+        {{
+            PyVarObject_HEAD_INIT(&PyArrayDTypeMeta_Type, 0)
+            .tp_name = NULL,  /* set below */
+            .tp_basicsize = sizeof(PyArray_Descr),
+            .tp_flags = Py_TPFLAGS_DEFAULT,
+            .tp_base = &PyArrayDescr_Type,
+            .tp_new = (newfunc)legacy_dtype_default_new,
+        },},
+        .legacy = 1,
+        .abstract = 0, /* this is a concrete DType */
+        /* Further fields are not common between DTypes */
+    };
+#endif
     memcpy(dtype_class, &prototype, sizeof(PyArray_DTypeMeta));
     /* Fix name of the Type*/
     ((PyTypeObject *)dtype_class)->tp_name = tp_name;
 
     /* Let python finish the initialization (probably unnecessary) */
     if (PyType_Ready((PyTypeObject *)dtype_class) < 0) {
+        fprintf(stderr, "Inside dtypemeta_wrap_legacy_descriptor, PyType_Ready((PyTypeObject *)dtype_class) < 0\n");
         return -1;
     }
 
@@ -588,6 +607,8 @@ dtypemeta_wrap_legacy_descriptor(PyArray_Descr *descr)
     if (_PyArray_MapPyTypeToDType(dtype_class, descr->typeobj,
             PyTypeNum_ISUSERDEF(dtype_class->type_num)) < 0) {
         Py_DECREF(dtype_class);
+        fprintf(stderr, "Before dtypemeta_wrap_legacy_descriptor: dtype_class: %s  descr->typeobj: %s\n",  ((PyTypeObject *)dtype_class)->tp_name, descr->typeobj->tp_name); 
+        fprintf(stderr, "Inside dtypemeta_wrap_legacy_descriptor, _PyArray_MapPyTypeToDType(dtype_class, descr->typeobj, PyTypeNum_ISUSERDEF(dtype_class->type_num)) < 0) < 0\n");
         return -1;
     }
 
@@ -628,3 +649,19 @@ NPY_NO_EXPORT PyTypeObject PyArrayDTypeMeta_Type = {
     .tp_is_gc = dtypemeta_is_gc,
     .tp_traverse = (traverseproc)dtypemeta_traverse,
 };
+
+#if TARGET_OS_IPHONE
+NPY_NO_EXPORT void reset_PyArrayDTypeMeta_Type() {
+   PyArrayDTypeMeta_Type.tp_name = "numpy._DTypeMeta";
+   PyArrayDTypeMeta_Type.tp_basicsize = sizeof(PyArray_DTypeMeta);
+   PyArrayDTypeMeta_Type.tp_dealloc = (destructor)dtypemeta_dealloc;
+   PyArrayDTypeMeta_Type.tp_flags = Py_TPFLAGS_DEFAULT | Py_TPFLAGS_HAVE_GC;
+   PyArrayDTypeMeta_Type.tp_doc = "Preliminary NumPy API: The Type of NumPy DTypes (metaclass)";
+   PyArrayDTypeMeta_Type.tp_members = dtypemeta_members;
+   PyArrayDTypeMeta_Type.tp_base = NULL;  /* set to PyType_Type at import time */
+   PyArrayDTypeMeta_Type.tp_init = (initproc)dtypemeta_init;
+   PyArrayDTypeMeta_Type.tp_new = dtypemeta_new;
+   PyArrayDTypeMeta_Type.tp_is_gc = dtypemeta_is_gc;
+   PyArrayDTypeMeta_Type.tp_traverse = (traverseproc)dtypemeta_traverse;
+}
+#endif

@@ -783,3 +783,18 @@ NPY_NO_EXPORT PyTypeObject PyArrayFlags_Type = {
     .tp_getset = arrayflags_getsets,
     .tp_new = arrayflags_new,
 };
+
+#if TARGET_OS_IPHONE
+NPY_NO_EXPORT void reset_PyArrayFlags_Type() {
+    PyArrayFlags_Type.tp_name = "numpy.flagsobj";
+    PyArrayFlags_Type.tp_basicsize = sizeof(PyArrayFlagsObject);
+    PyArrayFlags_Type.tp_dealloc = (destructor)arrayflags_dealloc;
+    PyArrayFlags_Type.tp_repr = (reprfunc)arrayflags_print;
+    PyArrayFlags_Type.tp_as_mapping = &arrayflags_as_mapping;
+    PyArrayFlags_Type.tp_str = (reprfunc)arrayflags_print;
+    PyArrayFlags_Type.tp_flags =Py_TPFLAGS_DEFAULT;
+    PyArrayFlags_Type.tp_richcompare = arrayflags_richcompare;
+    PyArrayFlags_Type.tp_getset = arrayflags_getsets;
+    PyArrayFlags_Type.tp_new = arrayflags_new;
+};
+#endif

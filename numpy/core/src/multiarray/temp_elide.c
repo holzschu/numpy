@@ -115,6 +115,7 @@ check_callers(int * cannot)
      * TODO some calls go over scalarmath in umath but we cannot get the base
      * address of it from multiarraymodule as it is not linked against it
      */
+#if !TARGET_OS_IPHONE
     static int init = 0;
     /*
      * measured DSO object memory start and end, if an address is located
@@ -131,6 +132,17 @@ check_callers(int * cannot)
     static void * pyeval_addr[64];
     static npy_intp n_py_addr = 0;
     static npy_intp n_pyeval = 0;
+#else // TARGET_OS_IPHONE: all these variables are thread-dependent
+    static __thread int init = 0;
+    static __thread void * pos_python_start;
+    static __thread void * pos_python_end;
+    static __thread void * pos_ma_start;
+    static __thread void * pos_ma_end;
+    static __thread void * py_addr[64];
+    static __thread void * pyeval_addr[64];
+    static __thread npy_intp n_py_addr = 0;
+    static __thread npy_intp n_pyeval = 0;
+#endif
 
     void *buffer[NPY_MAX_STACKSIZE];
     int i, nptrs;

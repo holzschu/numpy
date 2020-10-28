@@ -21,8 +21,13 @@
 
 CBLAS_INT BLAS_FUNC(xerbla)(char *srname, CBLAS_INT *info)
 {
+#if !TARGET_OS_IPHONE
         static const char format[] = "On entry to %.*s" \
                 " parameter number %d had an illegal value";
+#else
+        static __thread const char format[] = "On entry to %.*s" \
+                " parameter number %d had an illegal value";
+#endif
         char buf[sizeof(format) + 6 + 4];   /* 6 for name, 4 for param. num. */
 
         int len = 0; /* length of subroutine name*/

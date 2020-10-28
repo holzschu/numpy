@@ -150,7 +150,11 @@ check_and_adjust_axis_msg(int *axis, int ndim, PyObject *msg_prefix)
          * Load the exception type, if we don't already have it. Unfortunately
          * we don't have access to npy_cache_import here
          */
+#if !TARGET_OS_IPHONE
         static PyObject *AxisError_cls = NULL;
+#else 
+        static __thread PyObject *AxisError_cls = NULL;
+#endif
         PyObject *exc;
 
         npy_cache_import("numpy.core._exceptions", "AxisError", &AxisError_cls);

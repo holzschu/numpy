@@ -6,7 +6,6 @@
 #include "npy_import.h"
 #include "multiarraymodule.h"
 
-
 /* Return the ndarray.__array_function__ method. */
 static PyObject *
 get_ndarray_array_function(void)
@@ -25,7 +24,11 @@ get_ndarray_array_function(void)
 static PyObject *
 get_array_function(PyObject *obj)
 {
+#if !TARGET_OS_IPHONE
     static PyObject *ndarray_array_function = NULL;
+#else 
+    static __thread PyObject *ndarray_array_function = NULL;
+#endif
 
     if (ndarray_array_function == NULL) {
         ndarray_array_function = get_ndarray_array_function();
@@ -138,7 +141,11 @@ fail:
 static int
 is_default_array_function(PyObject *obj)
 {
+#if !TARGET_OS_IPHONE
     static PyObject *ndarray_array_function = NULL;
+#else
+    static __thread PyObject *ndarray_array_function = NULL;
+#endif
 
     if (ndarray_array_function == NULL) {
         ndarray_array_function = get_ndarray_array_function();
@@ -224,7 +231,11 @@ array_implement_array_function_internal(
 
     PyObject *result = NULL;
 
+#if !TARGET_OS_IPHONE
     static PyObject *errmsg_formatter = NULL;
+#else 
+    static __thread PyObject *errmsg_formatter = NULL;
+#endif
 
     relevant_args = PySequence_Fast(
         relevant_args,

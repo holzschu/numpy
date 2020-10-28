@@ -81,7 +81,11 @@ ufunc_frompyfunc(PyObject *NPY_UNUSED(dummy), PyObject *args, PyObject *kwds) {
     void * ptr, **data;
     int offset[2];
     PyObject *identity = NULL;  /* note: not the same semantics as Py_None */
+#if !TARGET_OS_IPHONE
     static char *kwlist[] = {"", "nin", "nout", "identity", NULL};
+#else
+    static __thread char *kwlist[] = {"", "nin", "nout", "identity", NULL};
+#endif
 
     if (!PyArg_ParseTupleAndKeywords(args, kwds, "Oii|$O:frompyfunc", kwlist,
                 &function, &nin, &nout, &identity)) {

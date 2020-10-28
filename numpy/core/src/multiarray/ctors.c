@@ -616,20 +616,13 @@ PyArray_AssignFromCache(PyArrayObject *self, coercion_cache_obj *cache) {
 }
 
 
-// iOS: move static variables outside of functions
-#if TARGET_OS_IPHONE
-static PyObject *exc_type = NULL;
-
-NPY_NO_EXPORT void clear_ctors_caches() {
-    exc_type = NULL;
-}
-#endif
-
 static void
 raise_memory_error(int nd, npy_intp const *dims, PyArray_Descr *descr)
 {
 #if !TARGET_OS_IPHONE
     static PyObject *exc_type = NULL;
+#else
+    static __thread PyObject *exc_type = NULL;
 #endif
 
     npy_cache_import(

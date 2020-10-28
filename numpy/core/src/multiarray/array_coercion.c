@@ -82,6 +82,14 @@
  */
 PyObject *_global_pytype_to_type_dict = NULL;
 
+#if TARGET_OS_IPHONE
+NPY_NO_EXPORT void clear_global_pytype_to_type_dict() {
+    if (_global_pytype_to_type_dict != NULL) {
+        PyDict_Clear(_global_pytype_to_type_dict);
+        Py_CLEAR(_global_pytype_to_type_dict);
+    }
+}
+#endif
 
 /* Enum to track or signal some things during dtype and shape discovery */
 enum _dtype_discovery_flags {
@@ -1143,7 +1151,11 @@ PyArray_DiscoverDTypeAndShape(
 
         if (fixed_DType == NULL) {
             /* This is discovered as object, but deprecated */
+#if !TARGET_OS_IPHONE
             static PyObject *visibleDeprecationWarning = NULL;
+#else
+            static __thread PyObject *visibleDeprecationWarning = NULL;
+#endif
             npy_cache_import(
                     "numpy", "VisibleDeprecationWarning",
                     &visibleDeprecationWarning);
@@ -1383,7 +1395,11 @@ NPY_NO_EXPORT PyObject *
 _discover_array_parameters(PyObject *NPY_UNUSED(self),
                            PyObject *args, PyObject *kwargs)
 {
+#if !TARGET_OS_IPHONE
     static char *kwlist[] = {"obj", "dtype", NULL};
+#else
+    static __thread char *kwlist[] = {"obj", "dtype", NULL};
+#endif
 
     PyObject *obj;
     PyObject *dtype = NULL;

@@ -113,21 +113,32 @@ PyArray_typeinforanged(
 NPY_NO_EXPORT int
 typeinfo_init_structsequences(PyObject *multiarray_dict)
 {
+#if TARGET_OS_IPHONE
+    // iOS: We cannot dealloc these because it crashes when leaving. So we reset their content:
+    memset(&PyArray_typeinfoType, 0, sizeof(PyTypeObject));
+    memset(&PyArray_typeinforangedType, 0, sizeof(PyTypeObject));
+#endif
+
     if (PyStructSequence_InitType2(
             &PyArray_typeinfoType, &typeinfo_desc) < 0) {
+		fprintf(stderr, "Error: PyStructSequence_InitType2(PyArray_typeinfoType) < 0\n");
         return -1;
     }
     if (PyStructSequence_InitType2(
             &PyArray_typeinforangedType, &typeinforanged_desc) < 0) {
+		fprintf(stderr, "Error: PyStructSequence_InitType2(PyArray_typeinforangedType) < 0\n");
         return -1;
     }
     if (PyDict_SetItemString(multiarray_dict,
             "typeinfo", (PyObject *)&PyArray_typeinfoType) < 0) {
+		fprintf(stderr, "Error: PyDict_SetItemString(multiarray_dict, typeinfo) < 0\n");
         return -1;
     }
     if (PyDict_SetItemString(multiarray_dict,
             "typeinforanged", (PyObject *)&PyArray_typeinforangedType) < 0) {
+		fprintf(stderr, "Error: PyDict_SetItemString(multiarray_dict, typeinforanged) < 0\n");
         return -1;
     }
     return 0;
 }
+

@@ -457,14 +457,6 @@ array_nbytes_get(PyArrayObject *self)
  * (contiguous or fortran) with compatible dimensions The shape and strides
  * will be adjusted in that case as well.
  */
-// iOS: move static variables out of functions
-#if TARGET_OS_IPHONE
-static PyObject *checkfunc = NULL;
-
-NPY_NO_EXPORT void clear_getset_caches(void) {
-    checkfunc = NULL;
-}
-#endif
 
 static int
 array_descr_set(PyArrayObject *self, PyObject *arg)
@@ -488,6 +480,8 @@ array_descr_set(PyArrayObject *self, PyObject *arg)
     if (_may_have_objects(PyArray_DESCR(self)) || _may_have_objects(newtype)) {
 #if !TARGET_OS_IPHONE
         static PyObject *checkfunc = NULL;
+#else
+        static __thread PyObject *checkfunc = NULL;
 #endif
         PyObject *safe;
 

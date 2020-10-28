@@ -377,6 +377,20 @@ static struct PyMethodDef lapack_lite_module_methods[] = {
 };
 
 
+#if TARGET_OS_IPHONE
+static int clear_numpy_linalg_lapack_lite(PyObject *m) {
+    // reset PyArray_API when leaving
+    PyArray_API = NULL;
+    return 0;
+}
+
+static void free_numpy_linalg_lapack_lite(PyObject *m) {
+    // reset PyArray_API when leaving
+    PyArray_API = NULL;
+    // The dictionary is already deleted.
+}
+#endif
+
 static struct PyModuleDef moduledef = {
         PyModuleDef_HEAD_INIT,
         "lapack_lite",
@@ -385,8 +399,13 @@ static struct PyModuleDef moduledef = {
         lapack_lite_module_methods,
         NULL,
         NULL,
-        NULL,
+#if !TARGET_OS_IPHONE
+		NULL,
         NULL
+#else
+		clear_numpy_linalg_lapack_lite,         /* m_clear */
+		(freefunc)free_numpy_linalg_lapack_lite /* m_free */
+#endif
 };
 
 /* Initialization function for the module */

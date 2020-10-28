@@ -687,10 +687,17 @@ npyiter_convert_ops(PyObject *op_in, PyObject *op_flags_in,
 static int
 npyiter_init(NewNpyArrayIterObject *self, PyObject *args, PyObject *kwds)
 {
+#if !TARGET_OS_IPHONE
     static char *kwlist[] = {"op", "flags", "op_flags", "op_dtypes",
                              "order", "casting", "op_axes", "itershape",
                              "buffersize",
                              NULL};
+#else
+    static __thread char *kwlist[] = {"op", "flags", "op_flags", "op_dtypes",
+                             "order", "casting", "op_axes", "itershape",
+                             "buffersize",
+                             NULL};
+#endif
 
     PyObject *op_in = NULL, *op_flags_in = NULL,
                 *op_dtypes_in = NULL, *op_axes_in = NULL;
@@ -817,10 +824,17 @@ NPY_NO_EXPORT PyObject *
 NpyIter_NestedIters(PyObject *NPY_UNUSED(self),
                     PyObject *args, PyObject *kwds)
 {
+#if !TARGET_OS_IPHONE
     static char *kwlist[] = {"op", "axes", "flags", "op_flags",
                              "op_dtypes", "order",
                              "casting", "buffersize",
                              NULL};
+#else
+    static __thread char *kwlist[] = {"op", "axes", "flags", "op_flags",
+                             "op_dtypes", "order",
+                             "casting", "buffersize",
+                             NULL};
+#endif
 
     PyObject *op_in = NULL, *axes_in = NULL,
             *op_flags_in = NULL, *op_dtypes_in = NULL;
@@ -2465,3 +2479,20 @@ NPY_NO_EXPORT PyTypeObject NpyIter_Type = {
     .tp_init = (initproc)npyiter_init,
     .tp_new = npyiter_new,
 };
+
+#if TARGET_OS_IPHONE
+NPY_NO_EXPORT void reset_NpyIter_Type() {
+    NpyIter_Type.tp_name = "numpy.nditer";
+    NpyIter_Type.tp_basicsize = sizeof(NewNpyArrayIterObject);
+    NpyIter_Type.tp_dealloc = (destructor)npyiter_dealloc;
+    NpyIter_Type.tp_as_sequence = &npyiter_as_sequence;
+    NpyIter_Type.tp_as_mapping = &npyiter_as_mapping;
+    NpyIter_Type.tp_flags = Py_TPFLAGS_DEFAULT;
+    NpyIter_Type.tp_iternext = (iternextfunc)npyiter_next;
+    NpyIter_Type.tp_methods = npyiter_methods;
+    NpyIter_Type.tp_members = npyiter_members;
+    NpyIter_Type.tp_getset = npyiter_getsets;
+    NpyIter_Type.tp_init = (initproc)npyiter_init;
+    NpyIter_Type.tp_new = npyiter_new;
+}
+#endif

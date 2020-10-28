@@ -736,7 +736,11 @@ get_nbo_cast_numeric_transfer_function(int aligned,
     if (PyTypeNum_ISCOMPLEX(src_type_num) &&
                     !PyTypeNum_ISCOMPLEX(dst_type_num) &&
                     !PyTypeNum_ISBOOL(dst_type_num)) {
+#if !TARGET_OS_IPHONE
         static PyObject *cls = NULL;
+#else 
+        static __thread PyObject *cls = NULL;
+#endif
         int ret;
         npy_cache_import("numpy.core", "ComplexWarning", &cls);
         if (cls == NULL) {

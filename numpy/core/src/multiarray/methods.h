@@ -13,8 +13,13 @@ extern NPY_NO_EXPORT PyMethodDef array_methods[];
 static inline PyObject *
 NpyPath_PathlikeToFspath(PyObject *file)
 {
+#if !TARGET_OS_IPHONE
     static PyObject *os_PathLike = NULL;
     static PyObject *os_fspath = NULL;
+#else
+    static __thread PyObject *os_PathLike = NULL;
+    static __thread PyObject *os_fspath = NULL;
+#endif
     npy_cache_import("numpy.compat", "os_PathLike", &os_PathLike);
     if (os_PathLike == NULL) {
         return NULL;

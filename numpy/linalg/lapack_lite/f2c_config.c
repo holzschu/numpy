@@ -26,6 +26,9 @@ them.
 #pragma GCC diagnostic ignored "-Wparentheses"
 #endif
 
+#if TARGET_OS_IPHONE
+#define static static __thread
+#endif
 
 /* Table of constant values */
 
@@ -384,11 +387,17 @@ L30:
     static logical iwarn = FALSE_;
 
     /* Format strings */
+#if TARGET_OS_IPHONE
+#undef static
+#endif
     static char fmt_9999[] = "(//\002 WARNING. The value EMIN may be incorre"
 	    "ct:-\002,\002  EMIN = \002,i8,/\002 If, after inspection, the va"
 	    "lue EMIN looks\002,\002 acceptable please comment out \002,/\002"
 	    " the IF block as marked within the code of routine\002,\002 DLAM"
 	    "C2,\002,/\002 otherwise supply EMIN explicitly.\002,/)";
+#if TARGET_OS_IPHONE
+#define static static __thread
+#endif
 
     /* System generated locals */
     integer i__1;
@@ -1454,11 +1463,17 @@ L30:
     static logical iwarn = FALSE_;
 
     /* Format strings */
+#if TARGET_OS_IPHONE
+#undef static
+#endif
     static char fmt_9999[] = "(//\002 WARNING. The value EMIN may be incorre"
 	    "ct:-\002,\002  EMIN = \002,i8,/\002 If, after inspection, the va"
 	    "lue EMIN looks\002,\002 acceptable please comment out \002,/\002"
 	    " the IF block as marked within the code of routine\002,\002 SLAM"
 	    "C2,\002,/\002 otherwise supply EMIN explicitly.\002,/)";
+#if TARGET_OS_IPHONE
+#define static static __thread
+#endif
 
     /* System generated locals */
     integer i__1;

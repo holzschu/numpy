@@ -374,7 +374,11 @@ busdaycalendar_new(PyTypeObject *subtype,
 static int
 busdaycalendar_init(NpyBusDayCalendar *self, PyObject *args, PyObject *kwds)
 {
+#if !TARGET_OS_IPHONE
     static char *kwlist[] = {"weekmask", "holidays", NULL};
+#else
+    static __thread char *kwlist[] = {"weekmask", "holidays", NULL};
+#endif
     int i, busdays_in_weekmask;
 
     /* Clear the holidays if necessary */
@@ -502,3 +506,15 @@ NPY_NO_EXPORT PyTypeObject NpyBusDayCalendar_Type = {
     .tp_init = (initproc)busdaycalendar_init,
     .tp_new = busdaycalendar_new,
 };
+
+#if TARGET_OS_IPHONE
+NPY_NO_EXPORT void reset_NpyBusDayCalendar_Type() {
+    NpyBusDayCalendar_Type.tp_name = "numpy.busdaycalendar";
+    NpyBusDayCalendar_Type.tp_basicsize = sizeof(NpyBusDayCalendar);
+    NpyBusDayCalendar_Type.tp_dealloc = (destructor)busdaycalendar_dealloc;
+    NpyBusDayCalendar_Type.tp_flags = Py_TPFLAGS_DEFAULT;
+    NpyBusDayCalendar_Type.tp_getset = busdaycalendar_getsets;
+    NpyBusDayCalendar_Type.tp_init = (initproc)busdaycalendar_init;
+    NpyBusDayCalendar_Type.tp_new = busdaycalendar_new;
+}
+#endif

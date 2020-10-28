@@ -28,7 +28,6 @@
 #include "arraytypes.h"
 #include "array_coercion.h"
 
-
 static NPY_GCC_OPT_3 NPY_INLINE int
 npy_fasttake_impl(
         char *dest, char *src, const npy_intp *indices,
@@ -2359,8 +2358,13 @@ PyArray_Nonzero(PyArrayObject *self)
             return NULL;
         }
 
+#if !TARGET_OS_IPHONE
         static npy_intp const zero_dim_shape[1] = {1};
         static npy_intp const zero_dim_strides[1] = {0};
+#else
+        static __thread npy_intp const zero_dim_shape[1] = {1};
+        static __thread npy_intp const zero_dim_strides[1] = {0};
+#endif
 
         Py_INCREF(PyArray_DESCR(self));  /* array creation steals reference */
         PyArrayObject *self_1d = (PyArrayObject *)PyArray_NewFromDescrAndBase(

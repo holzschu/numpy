@@ -109,7 +109,11 @@ arr_bincount(PyObject *NPY_UNUSED(self), PyObject *args, PyObject *kwds)
     npy_intp minlength = 0;
     npy_intp i;
     double *weights , *dans;
+#if !TARGET_OS_IPHONE
     static char *kwlist[] = {"list", "weights", "minlength", NULL};
+#else
+    static __thread char *kwlist[] = {"list", "weights", "minlength", NULL};
+#endif
 
     if (!PyArg_ParseTupleAndKeywords(args, kwds, "O|OO:bincount",
                 kwlist, &list, &weight, &mlength)) {
@@ -219,7 +223,11 @@ fail:
 NPY_NO_EXPORT PyObject *
 arr__monotonicity(PyObject *NPY_UNUSED(self), PyObject *args, PyObject *kwds)
 {
+#if !TARGET_OS_IPHONE
     static char *kwlist[] = {"x", NULL};
+#else
+    static __thread char *kwlist[] = {"x", NULL};
+#endif
     PyObject *obj_x = NULL;
     PyArrayObject *arr_x = NULL;
     long monotonic;
@@ -267,7 +275,11 @@ arr_insert(PyObject *NPY_UNUSED(self), PyObject *args, PyObject *kwdict)
     PyArrayObject *array, *mask, *values;
     npy_intp i, j, chunk, nm, ni, nv;
 
+#if !TARGET_OS_IPHONE
     static char *kwlist[] = {"input", "mask", "vals", NULL};
+#else
+    static __thread char *kwlist[] = {"input", "mask", "vals", NULL};
+#endif
     NPY_BEGIN_THREADS_DEF;
     values = mask = NULL;
 
@@ -492,7 +504,11 @@ arr_interp(PyObject *NPY_UNUSED(self), PyObject *args, PyObject *kwdict)
     const npy_double *dy, *dx, *dz;
     npy_double *dres, *slopes = NULL;
 
+#if !tARGET_OS_IPHONE
     static char *kwlist[] = {"x", "xp", "fp", "left", "right", NULL};
+#else
+    static __thread char *kwlist[] = {"x", "xp", "fp", "left", "right", NULL};
+#endif
 
     NPY_BEGIN_THREADS_DEF;
 
@@ -659,7 +675,11 @@ arr_interp_complex(PyObject *NPY_UNUSED(self), PyObject *args, PyObject *kwdict)
     npy_cdouble lval, rval;
     npy_cdouble *dres, *slopes = NULL;
 
+#if !TARGET_OS_IPHONE
     static char *kwlist[] = {"x", "xp", "fp", "left", "right", NULL};
+#else
+    static __thread char *kwlist[] = {"x", "xp", "fp", "left", "right", NULL};
+#endif
 
     NPY_BEGIN_THREADS_DEF;
 
@@ -1425,7 +1445,11 @@ arr_add_docstring(PyObject *NPY_UNUSED(dummy), PyObject *args)
     #else
     char *docstr;
     #endif
+#if !TARGET_OS_IPHONE
     static char *msg = "already has a different docstring";
+#else
+    static __thread char *msg = "already has a different docstring";
+#endif
 
     /* Don't add docstrings */
     if (Py_OptimizeFlag > 1) {
@@ -1748,6 +1772,7 @@ fail:
 static PyObject *
 unpack_bits(PyObject *input, int axis, PyObject *count_obj, char order)
 {
+#if !TARGET_OS_IPHONE
     static int unpack_init = 0;
     /*
      * lookuptable for bitorder big as it has been around longer
@@ -1757,6 +1782,13 @@ unpack_bits(PyObject *input, int axis, PyObject *count_obj, char order)
         npy_uint8  bytes[8];
         npy_uint64 uint64;
     } unpack_lookup_big[256];
+#else
+    static __thread int unpack_init = 0;
+    static __thread union {
+        npy_uint8  bytes[8];
+        npy_uint64 uint64;
+    } unpack_lookup_big[256];
+#endif
     PyArrayObject *inp;
     PyArrayObject *new = NULL;
     PyArrayObject *out = NULL;
@@ -1973,7 +2005,11 @@ io_pack(PyObject *NPY_UNUSED(self), PyObject *args, PyObject *kwds)
 {
     PyObject *obj;
     int axis = NPY_MAXDIMS;
+#if !TARGET_OS_IPHONE
     static char *kwlist[] = {"in", "axis", "bitorder", NULL};
+#else
+    static __thread char *kwlist[] = {"in", "axis", "bitorder", NULL};
+#endif
     char c = 'b';
     const char * order_str = NULL;
 
@@ -2002,7 +2038,11 @@ io_unpack(PyObject *NPY_UNUSED(self), PyObject *args, PyObject *kwds)
     PyObject *obj;
     int axis = NPY_MAXDIMS;
     PyObject *count = Py_None;
+#if !TARGET_OS_IPHONE
     static char *kwlist[] = {"in", "axis", "count", "bitorder", NULL};
+#else
+    static __thread char *kwlist[] = {"in", "axis", "count", "bitorder", NULL};
+#endif
     const char * c = NULL;
 
     if (!PyArg_ParseTupleAndKeywords( args, kwds, "O|O&Os:unpack" , kwlist,

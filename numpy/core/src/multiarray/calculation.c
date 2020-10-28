@@ -830,7 +830,11 @@ _GenericBinaryOutFunction(PyArrayObject *m1, PyObject *m2, PyArrayObject *out,
     }
     else {
         PyObject *args, *ret;
+#if !TARGET_OS_IPHONE
         static PyObject *kw = NULL;
+#else
+        static __thread PyObject *kw = NULL;
+#endif
 
         if (kw == NULL) {
             kw = Py_BuildValue("{s:s}", "casting", "unsafe");

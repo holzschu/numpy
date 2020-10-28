@@ -1116,6 +1116,20 @@ NPY_NO_EXPORT PyTypeObject PyArrayIter_Type = {
     .tp_getset = iter_getsets,
 };
 
+#if TARGET_OS_IPHONE
+NPY_NO_EXPORT void reset_PyArrayIter_Type() {
+   PyArrayIter_Type.tp_name = "numpy.flatiter";
+   PyArrayIter_Type.tp_basicsize = sizeof(PyArrayIterObject);
+   PyArrayIter_Type.tp_dealloc = (destructor)arrayiter_dealloc;
+   PyArrayIter_Type.tp_as_mapping = &iter_as_mapping;
+   PyArrayIter_Type.tp_flags = Py_TPFLAGS_DEFAULT;
+   PyArrayIter_Type.tp_richcompare = (richcmpfunc)iter_richcompare;
+   PyArrayIter_Type.tp_iternext = (iternextfunc)arrayiter_next;
+   PyArrayIter_Type.tp_methods = iter_methods;
+   PyArrayIter_Type.tp_members = iter_members;
+   PyArrayIter_Type.tp_getset = iter_getsets;
+}
+#endif
 /** END of Array Iterator **/
 
 /* Adjust dimensionality and strides for index object iterators
@@ -1527,6 +1541,20 @@ NPY_NO_EXPORT PyTypeObject PyArrayMultiIter_Type = {
     .tp_new = arraymultiter_new,
 };
 
+#if TARGET_OS_IPHONE
+NPY_NO_EXPORT void reset_PyArrayMultiIter_Type() {
+	PyArrayMultiIter_Type.tp_name = "numpy.broadcast";
+	PyArrayMultiIter_Type.tp_basicsize = sizeof(PyArrayMultiIterObject);
+	PyArrayMultiIter_Type.tp_dealloc = (destructor)arraymultiter_dealloc;
+	PyArrayMultiIter_Type.tp_flags = Py_TPFLAGS_DEFAULT;
+	PyArrayMultiIter_Type.tp_iternext = (iternextfunc)arraymultiter_next;
+	PyArrayMultiIter_Type.tp_methods = arraymultiter_methods;
+	PyArrayMultiIter_Type.tp_members = arraymultiter_members;
+	PyArrayMultiIter_Type.tp_getset = arraymultiter_getsetlist;
+	PyArrayMultiIter_Type.tp_new = arraymultiter_new;
+}
+#endif
+
 /*========================= Neighborhood iterator ======================*/
 
 static void neighiter_dealloc(PyArrayNeighborhoodIterObject* iter);
@@ -1804,3 +1832,13 @@ NPY_NO_EXPORT PyTypeObject PyArrayNeighborhoodIter_Type = {
     .tp_dealloc = (destructor)neighiter_dealloc,
     .tp_flags = Py_TPFLAGS_DEFAULT,
 };
+
+#if TARGET_OS_IPHONE
+NPY_NO_EXPORT void reset_PyArrayNeighborhoodIter_Type() {
+   PyArrayNeighborhoodIter_Type.tp_name = "numpy.neigh_internal_iter";
+   PyArrayNeighborhoodIter_Type.tp_basicsize = sizeof(PyArrayNeighborhoodIterObject);
+   PyArrayNeighborhoodIter_Type.tp_dealloc = (destructor)neighiter_dealloc;
+   PyArrayNeighborhoodIter_Type.tp_flags = Py_TPFLAGS_DEFAULT;
+}
+#endif
+

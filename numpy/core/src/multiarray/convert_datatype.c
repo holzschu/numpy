@@ -1782,7 +1782,11 @@ PyArray_Zero(PyArrayObject *arr)
 {
     char *zeroval;
     int ret, storeflags;
+#if !TARGET_OS_IPHONE
     static PyObject * zero_obj = NULL;
+#else
+    static __thread PyObject * zero_obj = NULL;
+#endif
 
     if (_check_object_rec(PyArray_DESCR(arr)) < 0) {
         return NULL;
@@ -1828,7 +1832,11 @@ PyArray_One(PyArrayObject *arr)
 {
     char *oneval;
     int ret, storeflags;
+#if !TARGET_OS_IPHONE
     static PyObject * one_obj = NULL;
+#else
+    static __thread PyObject * one_obj = NULL;
+#endif
 
     if (_check_object_rec(PyArray_DESCR(arr)) < 0) {
         return NULL;

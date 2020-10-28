@@ -1095,7 +1095,11 @@ get_ufunc_arguments(PyUFuncObject *ufunc,
     if (kwds) {
         PyObject *out_kwd = NULL;
         PyObject *sig = NULL;
+#if !TARGET_OS_IPHONE
         static PyObject *kwnames[13] = {NULL};
+#else
+        static __thread PyObject *kwnames[13] = {NULL};
+#endif
         if (kwnames[0] == NULL) {
             kwnames[0] = npy_um_str_out;
             kwnames[1] = npy_um_str_where;
@@ -3594,11 +3598,6 @@ finish_loop:
  * The axes must already be bounds-checked by the calling function,
  * this function does not validate them.
  */
-// iOS: move static variables outside of functions
-#if TARGET_OS_IPHONE
-static PyObject *NoValue = NULL;
-#endif
-
 static PyArrayObject *
 PyUFunc_Reduce(PyUFuncObject *ufunc, PyArrayObject *arr, PyArrayObject *out,
         int naxes, int *axes, PyArray_Descr *odtype, int keepdims,
@@ -3615,6 +3614,8 @@ PyUFunc_Reduce(PyUFuncObject *ufunc, PyArrayObject *arr, PyArrayObject *out,
     int buffersize = 0, errormask = 0;
 #if !TARGET_OS_IPHONE
     static PyObject *NoValue = NULL;
+#else
+    static __thread PyObject *NoValue = NULL;
 #endif
 
     NPY_UF_DBG_PRINT1("\nEvaluating ufunc %s.reduce\n", ufunc_name);
@@ -4444,6 +4445,7 @@ PyUFunc_GenericReduction(PyUFuncObject *ufunc, PyObject *args,
     PyArrayObject *out = NULL;
     int keepdims = 0;
     PyObject *initial = NULL;
+#if !TARGET_OS_IPHONE
     static char *reduce_kwlist[] = {
         "array", "axis", "dtype", "out", "keepdims", "initial", "where", NULL};
     static char *accumulate_kwlist[] = {
@@ -4452,7 +4454,16 @@ PyUFunc_GenericReduction(PyUFuncObject *ufunc, PyObject *args,
             "array", "indices", "axis", "dtype", "out", NULL};
 
     static char *_reduce_type[] = {"reduce", "accumulate", "reduceat", NULL};
+#else
+    static __thread char *reduce_kwlist[] = {
+        "array", "axis", "dtype", "out", "keepdims", "initial", "where", NULL};
+    static __thread char *accumulate_kwlist[] = {
+            "array", "axis", "dtype", "out", NULL};
+    static __thread char *reduceat_kwlist[] = {
+            "array", "indices", "axis", "dtype", "out", NULL};
 
+    static __thread char *_reduce_type[] = {"reduce", "accumulate", "reduceat", NULL};
+#endif
     if (ufunc == NULL) {
         PyErr_SetString(PyExc_ValueError, "function not supported");
         return NULL;
@@ -4855,7 +4866,11 @@ ufunc_seterr(PyObject *NPY_UNUSED(dummy), PyObject *args)
     PyObject *thedict;
     int res;
     PyObject *val;
+#if !TARGET_OS_IPHONE
     static char *msg = "Error object must be a list of length 3";
+#else
+    static __thread char *msg = "Error object must be a list of length 3";
+#endif
 
     if (!PyArg_ParseTuple(args, "O:seterrobj", &val)) {
         return NULL;
@@ -5431,7 +5446,11 @@ ufunc_outer(PyUFuncObject *ufunc, PyObject *args, PyObject *kwds)
     PyObject *ret;
     PyArrayObject *ap1 = NULL, *ap2 = NULL, *ap_new = NULL;
     PyObject *new_args, *tmp;
+#if !TARGET_OS_IPHONE
     static PyObject *_numpy_matrix;
+#else
+    static __thread PyObject *_numpy_matrix;
+#endif
 
 
     errval = PyUFunc_CheckOverride(ufunc, "outer", args, kwds, &override);
@@ -5984,21 +6003,13 @@ _typecharfromnum(int num) {
     return ret;
 }
 
-// iOS: move the cache outside of the function
-#if TARGET_OS_IPHONE
-static PyObject *_sig_formatter = NULL;
-
-void clear_ufunc_object_caches() {
-    NoValue = NULL;
-    _sig_formatter = NULL;
-}
-#endif
-
 static PyObject *
 ufunc_get_doc(PyUFuncObject *ufunc)
 {
 #if !TARGET_OS_IPHONE
     static PyObject *_sig_formatter;
+#else
+    static __thread PyObject *_sig_formatter;
 #endif
     PyObject *doc;
 
@@ -6173,14 +6184,10 @@ NPY_NO_EXPORT void reset_PyUFunc_Type(void)
     PyUFunc_Type.tp_basicsize  = sizeof(PyUFuncObject);
     PyUFunc_Type.tp_itemsize  = 0;
     PyUFunc_Type.tp_dealloc  = (destructor)ufunc_dealloc;
-    // PyUFunc_Type.tp_print  = 0;
+    PyArray_Type.tp_vectorcall_offset = 0; 
     PyUFunc_Type.tp_getattr  = 0;
     PyUFunc_Type.tp_setattr  = 0;
-#if defined(NPY_PY3K)
-    // PyUFunc_Type.tp_reserved  = 0;
-#else
-    PyUFunc_Type.tp_compare  = 0;
-#endif
+    PyArray_Type.tp_as_async = 0; 
     PyUFunc_Type.tp_repr  = (reprfunc)ufunc_repr;
     PyUFunc_Type.tp_as_number  = 0;
     PyUFunc_Type.tp_as_sequence  = 0;
@@ -6191,9 +6198,9 @@ NPY_NO_EXPORT void reset_PyUFunc_Type(void)
     PyUFunc_Type.tp_getattro  = 0;
     PyUFunc_Type.tp_setattro  = 0;
     PyUFunc_Type.tp_as_buffer  = 0;
-    PyUFunc_Type.tp_flags  = Py_TPFLAGS_DEFAULT;
+    PyUFunc_Type.tp_flags  = Py_TPFLAGS_DEFAULT | Py_TPFLAGS_HAVE_GC;
     PyUFunc_Type.tp_doc  = 0;
-    PyUFunc_Type.tp_traverse  = 0;
+    PyUFunc_Type.tp_traverse  = (traverseproc)ufunc_traverse;
     PyUFunc_Type.tp_clear  = 0;
     PyUFunc_Type.tp_richcompare  = 0;
     PyUFunc_Type.tp_weaklistoffset  = 0;
@@ -6219,5 +6226,7 @@ NPY_NO_EXPORT void reset_PyUFunc_Type(void)
     PyUFunc_Type.tp_weaklist  = 0;
     PyUFunc_Type.tp_del  = 0;
     PyUFunc_Type.tp_version_tag  = 0;
+    PyArray_Type.tp_finalize = 0;
+    PyArray_Type.tp_vectorcall = 0;
 }
 #endif
