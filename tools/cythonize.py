@@ -54,6 +54,12 @@ def process_pyx(fromfile, tofile):
     if tofile.endswith('.cxx'):
         flags.append('--cplus')
 
+    if (os.getenv('PLATFORM').startswith('iphone')):
+        # force Options.generate_cleanup_code to maximum level:
+        print("cythonize ", tofile, " ", fromfile, " (ios detected)")
+        flags.append('--cleanup')
+        flags.append('3')
+
     try:
         # try the cython in the installed python first (somewhat related to scipy/scipy#2397)
         from Cython.Compiler.Version import version as cython_version
@@ -177,9 +183,10 @@ def process(path, fromfile, tofile, processor_function, hash_db):
     fullfrompath = os.path.join(path, fromfile)
     fulltopath = os.path.join(path, tofile)
     current_hash = get_hash(fullfrompath, fulltopath)
-    if current_hash == hash_db.get(normpath(fullfrompath), None):
-        print(f'{fullfrompath} has not changed')
-        return
+    # Force re-cythonize each time, because we use different options for each architecture:
+    # if current_hash == hash_db.get(normpath(fullfrompath), None):
+    #     print(f'{fullfrompath} has not changed')
+    #     return
 
     orig_cwd = os.getcwd()
     try:
