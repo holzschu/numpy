@@ -108,25 +108,27 @@ class GnuFCompiler(FCompiler):
     def get_flags_linker_so(self):
         opt = self.linker_so[1:]
         if sys.platform == 'darwin':
-            target = os.environ.get('MACOSX_DEPLOYMENT_TARGET', None)
-            # If MACOSX_DEPLOYMENT_TARGET is set, we simply trust the value
-            # and leave it alone.  But, distutils will complain if the
-            # environment's value is different from the one in the Python
-            # Makefile used to build Python.  We let disutils handle this
-            # error checking.
-            if not target:
-                # If MACOSX_DEPLOYMENT_TARGET is not set in the environment,
-                # we try to get it first from sysconfig and then
-                # fall back to setting it to 10.9 This is a reasonable default
-                # even when using the official Python dist and those derived
-                # from it.
-                import sysconfig
-                target = sysconfig.get_config_var('MACOSX_DEPLOYMENT_TARGET')
+            platform = os.getenv('PLATFORM') or 'macosx'
+            if (platform == 'macosx'): 
+                target = os.environ.get('MACOSX_DEPLOYMENT_TARGET', None)
+                # If MACOSX_DEPLOYMENT_TARGET is set, we simply trust the value
+                # and leave it alone.  But, distutils will complain if the
+                # environment's value is different from the one in the Python
+                # Makefile used to build Python.  We let disutils handle this
+                # error checking.
                 if not target:
-                    target = '10.9'
-                    s = f'Env. variable MACOSX_DEPLOYMENT_TARGET set to {target}'
-                    warnings.warn(s, stacklevel=2)
-                os.environ['MACOSX_DEPLOYMENT_TARGET'] = target
+                    # If MACOSX_DEPLOYMENT_TARGET is not set in the environment,
+                    # we try to get it first from sysconfig and then
+                    # fall back to setting it to 10.9 This is a reasonable default
+                    # even when using the official Python dist and those derived
+                    # from it.
+                    import sysconfig
+                    target = sysconfig.get_config_var('MACOSX_DEPLOYMENT_TARGET')
+                    if not target:
+                        target = '10.9'
+                        s = f'Env. variable MACOSX_DEPLOYMENT_TARGET set to {target}'
+                        warnings.warn(s, stacklevel=2)
+                    os.environ['MACOSX_DEPLOYMENT_TARGET'] = target
             opt.extend(['-undefined', 'dynamic_lookup', '-bundle'])
         else:
             opt.append("-shared")
@@ -192,6 +194,7 @@ class GnuFCompiler(FCompiler):
         lib_gfortran_dir = self.get_libgfortran_dir()
         if lib_gfortran_dir:
             opt.append(lib_gfortran_dir)
+        print("NUMPY: get_library_dirs: ", opt)
         return opt
 
     def get_libraries(self):
@@ -213,6 +216,7 @@ class GnuFCompiler(FCompiler):
             opt.append('gcc')
         if sys.platform == 'darwin':
             opt.append('cc_dynamic')
+        print("NUMPY: get_libraries: ", opt)
         return opt
 
     def get_flags_debug(self):
@@ -311,6 +315,12 @@ class Gnu95FCompiler(GnuFCompiler):
                 executables[key].append('-maix64')
 
     g2c = 'gfortran'
+
+    if (sys.platform == 'darwin'):
+        platform = os.getenv('PLATFORM') or 'macosx'
+        if (platform == 'iphoneos'): 
+            possible_executables = ['aarch64-apple-darwin20-gfortran']
+
 
     def _universal_flags(self, cmd):
         """Return a list of -arch flags for every supported architecture."""
