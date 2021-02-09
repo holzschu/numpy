@@ -137,7 +137,7 @@ def paren_repl(obj):
     numrep = obj.group(2)
     return ','.join([torep]*int(numrep))
 
-parenrep = re.compile(r"[(]([^)]*)[)]\*(\d+)")
+parenrep = re.compile(r"\(([^)]*)\)\*(\d+)")
 plainrep = re.compile(r"([^*]+)\*(\d+)")
 def parse_values(astr):
     # replaces all occurrences of '(a,b,c)*4' in astr
@@ -207,7 +207,7 @@ def parse_loop_header(loophead) :
         dlist.append(tmp)
     return dlist
 
-replace_re = re.compile(r"@([\w]+)@")
+replace_re = re.compile(r"@(\w+)@")
 def parse_string(astr, env, level, line) :
     lineno = "#line %d\n" % line
 
@@ -218,7 +218,7 @@ def parse_string(astr, env, level, line) :
             val = env[name]
         except KeyError:
             msg = 'line %d: no definition of key "%s"'%(line, name)
-            raise ValueError(msg)
+            raise ValueError(msg) from None
         return val
 
     code = [lineno]

@@ -63,14 +63,26 @@
 /***************************
  * Division
  ***************************/
-#ifdef __aarch64__
+#if NPY_SIMD_F64
     #define npyv_div_f32 vdivq_f32
 #else
-    NPY_FINLINE float32x4_t npyv_div_f32(float32x4_t a, float32x4_t b)
+    NPY_FINLINE npyv_f32 npyv_div_f32(npyv_f32 a, npyv_f32 b)
     {
-        float32x4_t recip = vrecpeq_f32(b);
-        recip = vmulq_f32(vrecpsq_f32(b, recip), recip);
-        return vmulq_f32(a, recip);
+        // Based on ARM doc, see https://developer.arm.com/documentation/dui0204/j/CIHDIACI
+        // estimate to 1/b
+        npyv_f32 recipe = vrecpeq_f32(b);
+        /**
+         * Newton-Raphson iteration:
+         *  x[n+1] = x[n] * (2-d * x[n])
+         * converges to (1/d) if x0 is the result of VRECPE applied to d.
+         *
+         *  NOTE: at least 3 iterations is needed to improve precision
+         */
+        recipe = vmulq_f32(vrecpsq_f32(b, recipe), recipe);
+        recipe = vmulq_f32(vrecpsq_f32(b, recipe), recipe);
+        recipe = vmulq_f32(vrecpsq_f32(b, recipe), recipe);
+        // a/b = a*recip(b)
+        return vmulq_f32(a, recipe);
     }
 #endif
 #define npyv_div_f64 vdivq_f64
@@ -118,4 +130,53 @@
     NPY_FINLINE npyv_f64 npyv_nmulsub_f64(npyv_f64 a, npyv_f64 b, npyv_f64 c)
     { return vfmsq_f64(vnegq_f64(c), a, b); }
 #endif // NPY_SIMD_F64
+
+/***************************
+ * Summation
+ ***************************/
+// reduce sum across vector
+#if NPY_SIMD_F64
+    #define npyv_sum_u32 vaddvq_u32
+    #define npyv_sum_u64 vaddvq_u64
+    #define npyv_sum_f32 vaddvq_f32
+    #define npyv_sum_f64 vaddvq_f64
+#else
+    NPY_FINLINE npy_uint64 npyv_sum_u64(npyv_u64 a)
+    {
+        return vget_lane_u64(vadd_u64(vget_low_u64(a), vget_high_u64(a)),0);
+    }
+
+    NPY_FINLINE npy_uint32 npyv_sum_u32(npyv_u32 a)
+    {
+        uint32x2_t a0 = vpadd_u32(vget_low_u32(a), vget_high_u32(a)); 
+        return (unsigned)vget_lane_u32(vpadd_u32(a0, vget_high_u32(a)),0);
+    }
+
+    NPY_FINLINE float npyv_sum_f32(npyv_f32 a)
+    {
+        float32x2_t r = vadd_f32(vget_high_f32(a), vget_low_f32(a));
+        return vget_lane_f32(vpadd_f32(r, r), 0);
+    }
+#endif
+
+// expand the source vector and performs sum reduce
+#if NPY_SIMD_F64
+    #define npyv_sumup_u8  vaddlvq_u8
+    #define npyv_sumup_u16 vaddlvq_u16
+#else
+    NPY_FINLINE npy_uint16 npyv_sumup_u8(npyv_u8 a)
+    {
+        uint32x4_t t0 = vpaddlq_u16(vpaddlq_u8(a));
+        uint32x2_t t1 = vpadd_u32(vget_low_u32(t0), vget_high_u32(t0));
+        return vget_lane_u32(vpadd_u32(t1, t1), 0);
+    }
+
+    NPY_FINLINE npy_uint32 npyv_sumup_u16(npyv_u16 a)
+    {
+        uint32x4_t t0 = vpaddlq_u16(a);
+        uint32x2_t t1 = vpadd_u32(vget_low_u32(t0), vget_high_u32(t0));
+        return vget_lane_u32(vpadd_u32(t1, t1), 0);
+    }
+#endif
+
 #endif // _NPY_SIMD_NEON_ARITHMETIC_H

@@ -108,6 +108,11 @@ _try_convert_from_dtype_attr(PyObject *obj)
         goto fail;
     }
 
+    if (PyArray_DescrCheck(dtypedescr)) {
+        /* The dtype attribute is already a valid descriptor */
+        return (PyArray_Descr *)dtypedescr;
+    }
+
     if (Py_EnterRecursiveCall(
             " while trying to convert the given data type from its "
             "`.dtype` attribute.") != 0) {
@@ -120,6 +125,15 @@ _try_convert_from_dtype_attr(PyObject *obj)
     Py_LeaveRecursiveCall();
     if (newdescr == NULL) {
         goto fail;
+    }
+
+    /* Deprecated 2021-01-05, NumPy 1.21 */
+    if (DEPRECATE("in the future the `.dtype` attribute of a given data"
+                  "type object must be a valid dtype instance. "
+                  "`data_type.dtype` may need to be coerced using "
+                  "`np.dtype(data_type.dtype)`. (Deprecated NumPy 1.20)") < 0) {
+        Py_DECREF(newdescr);
+        return NULL;
     }
 
     return newdescr;
@@ -1497,15 +1511,36 @@ _convert_from_any(PyObject *obj, int align)
     }
     else if (PyTuple_Check(obj)) {
         /* or a tuple */
-        return _convert_from_tuple(obj, align);
+        if (Py_EnterRecursiveCall(
+                " while trying to convert the given data type from"
+                " a tuple object" ) != 0) {
+            return NULL;
+        }
+        PyArray_Descr *ret = _convert_from_tuple(obj, align);
+        Py_LeaveRecursiveCall();
+        return ret;
     }
     else if (PyList_Check(obj)) {
         /* or a list */
-        return _convert_from_array_descr(obj, align);
+        if (Py_EnterRecursiveCall(
+                " while trying to convert the given data type from"
+                " a list object" ) != 0) {
+            return NULL;
+        }
+        PyArray_Descr *ret = _convert_from_array_descr(obj, align);
+        Py_LeaveRecursiveCall();
+        return ret;
     }
     else if (PyDict_Check(obj) || PyDictProxy_Check(obj)) {
         /* or a dictionary */
-        return _convert_from_dict(obj, align);
+        if (Py_EnterRecursiveCall(
+                " while trying to convert the given data type from"
+                " a dict object" ) != 0) {
+            return NULL;
+        }
+        PyArray_Descr *ret = _convert_from_dict(obj, align);
+        Py_LeaveRecursiveCall();
+        return ret;
     }
     else if (PyArray_Check(obj)) {
         PyErr_SetString(PyExc_TypeError, "Cannot construct a dtype from an array");

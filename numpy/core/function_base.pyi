@@ -1,21 +1,18 @@
 import sys
 from typing import overload, Tuple, Union, Sequence, Any
 
-from numpy import ndarray, inexact, _NumberLike
-from numpy.typing import ArrayLike, DtypeLike, _SupportsArray
+from numpy import ndarray, inexact
+from numpy.typing import ArrayLike, DTypeLike, _SupportsArray, _NumberLike_co
 
 if sys.version_info >= (3, 8):
     from typing import SupportsIndex, Literal
 else:
-    from typing_extensions import Literal, Protocol
-
-    class SupportsIndex(Protocol):
-        def __index__(self) -> int: ...
+    from typing_extensions import SupportsIndex, Literal
 
 # TODO: wait for support for recursive types
 _ArrayLikeNested = Sequence[Sequence[Any]]
 _ArrayLikeNumber = Union[
-    _NumberLike, Sequence[_NumberLike], ndarray, _SupportsArray, _ArrayLikeNested
+    _NumberLike_co, Sequence[_NumberLike_co], ndarray, _SupportsArray, _ArrayLikeNested
 ]
 @overload
 def linspace(
@@ -24,7 +21,7 @@ def linspace(
     num: SupportsIndex = ...,
     endpoint: bool = ...,
     retstep: Literal[False] = ...,
-    dtype: DtypeLike = ...,
+    dtype: DTypeLike = ...,
     axis: SupportsIndex = ...,
 ) -> ndarray: ...
 @overload
@@ -34,7 +31,7 @@ def linspace(
     num: SupportsIndex = ...,
     endpoint: bool = ...,
     retstep: Literal[True] = ...,
-    dtype: DtypeLike = ...,
+    dtype: DTypeLike = ...,
     axis: SupportsIndex = ...,
 ) -> Tuple[ndarray, inexact]: ...
 def logspace(
@@ -43,7 +40,7 @@ def logspace(
     num: SupportsIndex = ...,
     endpoint: bool = ...,
     base: _ArrayLikeNumber = ...,
-    dtype: DtypeLike = ...,
+    dtype: DTypeLike = ...,
     axis: SupportsIndex = ...,
 ) -> ndarray: ...
 def geomspace(
@@ -51,6 +48,6 @@ def geomspace(
     stop: _ArrayLikeNumber,
     num: SupportsIndex = ...,
     endpoint: bool = ...,
-    dtype: DtypeLike = ...,
+    dtype: DTypeLike = ...,
     axis: SupportsIndex = ...,
 ) -> ndarray: ...

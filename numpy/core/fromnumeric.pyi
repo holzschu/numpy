@@ -6,25 +6,31 @@ from numpy import (
     ndarray,
     number,
     integer,
+    intp,
     bool_,
     generic,
     _OrderKACF,
     _OrderACF,
-    _IntLike,
-    _BoolLike,
-    _NumberLike,
+    _ArrayLikeBool,
+    _ArrayLikeIntOrBool,
+    _ModeKind,
+    _PartitionKind,
+    _SortKind,
+    _SortSide,
 )
-from numpy.typing import DtypeLike, ArrayLike, _ShapeLike, _Shape
+from numpy.typing import (
+    DTypeLike,
+    ArrayLike,
+    _ShapeLike,
+    _Shape,
+    _IntLike_co,
+    _NumberLike_co,
+)
 
 if sys.version_info >= (3, 8):
     from typing import Literal
 else:
     from typing_extensions import Literal
-
-_Mode = Literal["raise", "wrap", "clip"]
-_PartitionKind = Literal["introselect"]
-_SortKind = Literal["quicksort", "mergesort", "heapsort", "stable"]
-_Side = Literal["left", "right"]
 
 # Various annotations for scalars
 
@@ -44,21 +50,6 @@ _ScalarGenericDT = TypeVar(
 
 _Number = TypeVar("_Number", bound=number)
 
-# An array-like object consisting of integers
-_IntOrBool = Union[_IntLike, _BoolLike]
-_ArrayLikeIntNested = ArrayLike  # TODO: wait for support for recursive types
-_ArrayLikeBoolNested = ArrayLike  # TODO: wait for support for recursive types
-
-# Integers and booleans can generally be used interchangeably
-_ArrayLikeIntOrBool = Union[
-    _IntOrBool,
-    ndarray,
-    Sequence[_IntOrBool],
-    Sequence[_ArrayLikeIntNested],
-    Sequence[_ArrayLikeBoolNested],
-]
-_ArrayLikeBool = Union[_BoolLike, Sequence[_BoolLike], ndarray]
-
 # The signature of take() follows a common theme with its overloads:
 # 1. A generic comes in; the same generic comes out
 # 2. A scalar comes in; a generic comes out
@@ -70,7 +61,7 @@ def take(
     indices: int,
     axis: Optional[int] = ...,
     out: Optional[ndarray] = ...,
-    mode: _Mode = ...,
+    mode: _ModeKind = ...,
 ) -> _ScalarGenericDT: ...
 @overload
 def take(
@@ -78,7 +69,7 @@ def take(
     indices: int,
     axis: Optional[int] = ...,
     out: Optional[ndarray] = ...,
-    mode: _Mode = ...,
+    mode: _ModeKind = ...,
 ) -> _ScalarNumpy: ...
 @overload
 def take(
@@ -86,7 +77,7 @@ def take(
     indices: int,
     axis: Optional[int] = ...,
     out: Optional[ndarray] = ...,
-    mode: _Mode = ...,
+    mode: _ModeKind = ...,
 ) -> _ScalarNumpy: ...
 @overload
 def take(
@@ -94,7 +85,7 @@ def take(
     indices: _ArrayLikeIntOrBool,
     axis: Optional[int] = ...,
     out: Optional[ndarray] = ...,
-    mode: _Mode = ...,
+    mode: _ModeKind = ...,
 ) -> Union[_ScalarNumpy, ndarray]: ...
 def reshape(a: ArrayLike, newshape: _ShapeLike, order: _OrderACF = ...) -> ndarray: ...
 @overload
@@ -102,24 +93,24 @@ def choose(
     a: _ScalarIntOrBool,
     choices: ArrayLike,
     out: Optional[ndarray] = ...,
-    mode: _Mode = ...,
+    mode: _ModeKind = ...,
 ) -> _ScalarIntOrBool: ...
 @overload
 def choose(
-    a: _IntOrBool, choices: ArrayLike, out: Optional[ndarray] = ..., mode: _Mode = ...
+    a: _IntLike_co, choices: ArrayLike, out: Optional[ndarray] = ..., mode: _ModeKind = ...
 ) -> Union[integer, bool_]: ...
 @overload
 def choose(
     a: _ArrayLikeIntOrBool,
     choices: ArrayLike,
     out: Optional[ndarray] = ...,
-    mode: _Mode = ...,
+    mode: _ModeKind = ...,
 ) -> ndarray: ...
 def repeat(
     a: ArrayLike, repeats: _ArrayLikeIntOrBool, axis: Optional[int] = ...
 ) -> ndarray: ...
 def put(
-    a: ndarray, ind: _ArrayLikeIntOrBool, v: ArrayLike, mode: _Mode = ...
+    a: ndarray, ind: _ArrayLikeIntOrBool, v: ArrayLike, mode: _ModeKind = ...
 ) -> None: ...
 def swapaxes(a: ArrayLike, axis1: int, axis2: int) -> ndarray: ...
 def transpose(
@@ -139,7 +130,7 @@ def argpartition(
     axis: Optional[int] = ...,
     kind: _PartitionKind = ...,
     order: Union[None, str, Sequence[str]] = ...,
-) -> integer: ...
+) -> intp: ...
 @overload
 def argpartition(
     a: _ScalarBuiltin,
@@ -169,29 +160,29 @@ def argsort(
     order: Union[None, str, Sequence[str]] = ...,
 ) -> ndarray: ...
 @overload
-def argmax(a: ArrayLike, axis: None = ..., out: Optional[ndarray] = ...) -> integer: ...
+def argmax(a: ArrayLike, axis: None = ..., out: Optional[ndarray] = ...) -> intp: ...
 @overload
 def argmax(
     a: ArrayLike, axis: int = ..., out: Optional[ndarray] = ...
-) -> Union[integer, ndarray]: ...
+) -> Union[ndarray, intp]: ...
 @overload
-def argmin(a: ArrayLike, axis: None = ..., out: Optional[ndarray] = ...) -> integer: ...
+def argmin(a: ArrayLike, axis: None = ..., out: Optional[ndarray] = ...) -> intp: ...
 @overload
 def argmin(
     a: ArrayLike, axis: int = ..., out: Optional[ndarray] = ...
-) -> Union[integer, ndarray]: ...
+) -> Union[ndarray, intp]: ...
 @overload
 def searchsorted(
     a: ArrayLike,
     v: _Scalar,
-    side: _Side = ...,
+    side: _SortSide = ...,
     sorter: Optional[_ArrayLikeIntOrBool] = ...,  # 1D int array
-) -> integer: ...
+) -> intp: ...
 @overload
 def searchsorted(
     a: ArrayLike,
     v: ArrayLike,
-    side: _Side = ...,
+    side: _SortSide = ...,
     sorter: Optional[_ArrayLikeIntOrBool] = ...,  # 1D int array
 ) -> ndarray: ...
 def resize(a: ArrayLike, new_shape: _ShapeLike) -> ndarray: ...
@@ -207,7 +198,7 @@ def trace(
     offset: int = ...,
     axis1: int = ...,
     axis2: int = ...,
-    dtype: DtypeLike = ...,
+    dtype: DTypeLike = ...,
     out: Optional[ndarray] = ...,
 ) -> Union[number, ndarray]: ...
 def ravel(a: ArrayLike, order: _OrderKACF = ...) -> ndarray: ...
@@ -255,20 +246,20 @@ def clip(
 def sum(
     a: _Number,
     axis: Optional[_ShapeLike] = ...,
-    dtype: DtypeLike = ...,
+    dtype: DTypeLike = ...,
     out: Optional[ndarray] = ...,
     keepdims: bool = ...,
-    initial: _NumberLike = ...,
+    initial: _NumberLike_co = ...,
     where: _ArrayLikeBool = ...,
 ) -> _Number: ...
 @overload
 def sum(
     a: ArrayLike,
     axis: _ShapeLike = ...,
-    dtype: DtypeLike = ...,
+    dtype: DTypeLike = ...,
     out: Optional[ndarray] = ...,
     keepdims: bool = ...,
-    initial: _NumberLike = ...,
+    initial: _NumberLike_co = ...,
     where: _ArrayLikeBool = ...,
 ) -> Union[number, ndarray]: ...
 @overload
@@ -302,7 +293,7 @@ def any(
 def cumsum(
     a: ArrayLike,
     axis: Optional[int] = ...,
-    dtype: DtypeLike = ...,
+    dtype: DTypeLike = ...,
     out: Optional[ndarray] = ...,
 ) -> ndarray: ...
 @overload
@@ -332,7 +323,7 @@ def amax(
     axis: Optional[_ShapeLike] = ...,
     out: Optional[ndarray] = ...,
     keepdims: bool = ...,
-    initial: _NumberLike = ...,
+    initial: _NumberLike_co = ...,
     where: _ArrayLikeBool = ...,
 ) -> _Number: ...
 @overload
@@ -341,7 +332,7 @@ def amax(
     axis: None = ...,
     out: Optional[ndarray] = ...,
     keepdims: Literal[False] = ...,
-    initial: _NumberLike = ...,
+    initial: _NumberLike_co = ...,
     where: _ArrayLikeBool = ...,
 ) -> number: ...
 @overload
@@ -350,7 +341,7 @@ def amax(
     axis: Optional[_ShapeLike] = ...,
     out: Optional[ndarray] = ...,
     keepdims: bool = ...,
-    initial: _NumberLike = ...,
+    initial: _NumberLike_co = ...,
     where: _ArrayLikeBool = ...,
 ) -> Union[number, ndarray]: ...
 @overload
@@ -359,7 +350,7 @@ def amin(
     axis: Optional[_ShapeLike] = ...,
     out: Optional[ndarray] = ...,
     keepdims: bool = ...,
-    initial: _NumberLike = ...,
+    initial: _NumberLike_co = ...,
     where: _ArrayLikeBool = ...,
 ) -> _Number: ...
 @overload
@@ -368,7 +359,7 @@ def amin(
     axis: None = ...,
     out: Optional[ndarray] = ...,
     keepdims: Literal[False] = ...,
-    initial: _NumberLike = ...,
+    initial: _NumberLike_co = ...,
     where: _ArrayLikeBool = ...,
 ) -> number: ...
 @overload
@@ -377,7 +368,7 @@ def amin(
     axis: Optional[_ShapeLike] = ...,
     out: Optional[ndarray] = ...,
     keepdims: bool = ...,
-    initial: _NumberLike = ...,
+    initial: _NumberLike_co = ...,
     where: _ArrayLikeBool = ...,
 ) -> Union[number, ndarray]: ...
 
@@ -392,36 +383,36 @@ def amin(
 def prod(
     a: _Number,
     axis: Optional[_ShapeLike] = ...,
-    dtype: DtypeLike = ...,
+    dtype: DTypeLike = ...,
     out: None = ...,
     keepdims: bool = ...,
-    initial: _NumberLike = ...,
+    initial: _NumberLike_co = ...,
     where: _ArrayLikeBool = ...,
 ) -> _Number: ...
 @overload
 def prod(
     a: ArrayLike,
     axis: None = ...,
-    dtype: DtypeLike = ...,
+    dtype: DTypeLike = ...,
     out: None = ...,
     keepdims: Literal[False] = ...,
-    initial: _NumberLike = ...,
+    initial: _NumberLike_co = ...,
     where: _ArrayLikeBool = ...,
 ) -> number: ...
 @overload
 def prod(
     a: ArrayLike,
     axis: Optional[_ShapeLike] = ...,
-    dtype: DtypeLike = ...,
+    dtype: DTypeLike = ...,
     out: Optional[ndarray] = ...,
     keepdims: bool = ...,
-    initial: _NumberLike = ...,
+    initial: _NumberLike_co = ...,
     where: _ArrayLikeBool = ...,
 ) -> Union[number, ndarray]: ...
 def cumprod(
     a: ArrayLike,
     axis: Optional[int] = ...,
-    dtype: DtypeLike = ...,
+    dtype: DTypeLike = ...,
     out: Optional[ndarray] = ...,
 ) -> ndarray: ...
 def ndim(a: ArrayLike) -> int: ...
@@ -432,7 +423,7 @@ def around(
 ) -> _Number: ...
 @overload
 def around(
-    a: _NumberLike, decimals: int = ..., out: Optional[ndarray] = ...
+    a: _NumberLike_co, decimals: int = ..., out: Optional[ndarray] = ...
 ) -> number: ...
 @overload
 def around(
@@ -442,7 +433,7 @@ def around(
 def mean(
     a: ArrayLike,
     axis: None = ...,
-    dtype: DtypeLike = ...,
+    dtype: DTypeLike = ...,
     out: None = ...,
     keepdims: Literal[False] = ...,
 ) -> number: ...
@@ -450,7 +441,7 @@ def mean(
 def mean(
     a: ArrayLike,
     axis: Optional[_ShapeLike] = ...,
-    dtype: DtypeLike = ...,
+    dtype: DTypeLike = ...,
     out: Optional[ndarray] = ...,
     keepdims: bool = ...,
 ) -> Union[number, ndarray]: ...
@@ -458,7 +449,7 @@ def mean(
 def std(
     a: ArrayLike,
     axis: None = ...,
-    dtype: DtypeLike = ...,
+    dtype: DTypeLike = ...,
     out: None = ...,
     ddof: int = ...,
     keepdims: Literal[False] = ...,
@@ -467,7 +458,7 @@ def std(
 def std(
     a: ArrayLike,
     axis: Optional[_ShapeLike] = ...,
-    dtype: DtypeLike = ...,
+    dtype: DTypeLike = ...,
     out: Optional[ndarray] = ...,
     ddof: int = ...,
     keepdims: bool = ...,
@@ -476,7 +467,7 @@ def std(
 def var(
     a: ArrayLike,
     axis: None = ...,
-    dtype: DtypeLike = ...,
+    dtype: DTypeLike = ...,
     out: None = ...,
     ddof: int = ...,
     keepdims: Literal[False] = ...,
@@ -485,7 +476,7 @@ def var(
 def var(
     a: ArrayLike,
     axis: Optional[_ShapeLike] = ...,
-    dtype: DtypeLike = ...,
+    dtype: DTypeLike = ...,
     out: Optional[ndarray] = ...,
     ddof: int = ...,
     keepdims: bool = ...,

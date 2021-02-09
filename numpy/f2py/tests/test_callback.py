@@ -211,3 +211,68 @@ class TestF77CallbackPythonTLS(TestF77Callback):
     compiler-provided
     """
     options = ["-DF2PY_USE_PYTHON_TLS"]
+
+
+class TestF90Callback(util.F2PyTest):
+
+    suffix = '.f90'
+
+    code = textwrap.dedent(
+        """
+        function gh17797(f, y) result(r)
+          external f
+          integer(8) :: r, f
+          integer(8), dimension(:) :: y
+          r = f(0)
+          r = r + sum(y)
+        end function gh17797
+        """)
+
+    def test_gh17797(self):
+
+        def incr(x):
+            return x + 123
+
+        y = np.array([1, 2, 3], dtype=np.int64)
+        r = self.module.gh17797(incr, y)
+        assert r == 123 + 1 + 2 + 3
+
+
+class TestGH18335(util.F2PyTest):
+    """The reproduction of the reported issue requires specific input that
+    extensions may break the issue conditions, so the reproducer is
+    implemented as a separate test class. Do not extend this test with
+    other tests!
+    """
+
+    suffix = '.f90'
+
+    code = textwrap.dedent(
+        """
+        ! When gh18335_workaround is defined as an extension,
+        ! the issue cannot be reproduced.
+        !subroutine gh18335_workaround(f, y)
+        !  implicit none
+        !  external f
+        !  integer(kind=1) :: y(1)
+        !  call f(y)
+        !end subroutine gh18335_workaround
+
+        function gh18335(f) result (r)
+          implicit none
+          external f
+          integer(kind=1) :: y(1), r
+          y(1) = 123
+          call f(y)
+          r = y(1)
+        end function gh18335
+        """)
+
+    def test_gh18335(self):
+
+        def foo(x):
+            x[0] += 1
+
+        y = np.array([1, 2, 3], dtype=np.int8)
+        r = self.module.gh18335(foo)
+        assert r == 123 + 1

@@ -1148,6 +1148,9 @@ static void
 npyiter_dealloc(NewNpyArrayIterObject *self)
 {
     if (self->iter) {
+        /* Store error, so that WriteUnraisable cannot clear an existing one */
+        PyObject *exc, *val, *tb;
+        PyErr_Fetch(&exc, &val, &tb);
         if (npyiter_has_writeback(self->iter)) {
             if (PyErr_WarnEx(PyExc_RuntimeWarning,
                     "Temporary data has not been written back to one of the "
@@ -1166,10 +1169,13 @@ npyiter_dealloc(NewNpyArrayIterObject *self)
                 }
             }
         }
-        NpyIter_Deallocate(self->iter);
+        if (!NpyIter_Deallocate(self->iter)) {
+            PyErr_WriteUnraisable(Py_None);
+        }
         self->iter = NULL;
         Py_XDECREF(self->nested_child);
         self->nested_child = NULL;
+        PyErr_Restore(exc, val, tb);
     }
     Py_TYPE(self)->tp_free((PyObject*)self);
 }
@@ -2334,7 +2340,7 @@ npyiter_close(NewNpyArrayIterObject *self)
     self->iter = NULL;
     Py_XDECREF(self->nested_child);
     self->nested_child = NULL;
-    if (ret < 0) {
+    if (ret != NPY_SUCCEED) {
         return NULL;
     }
     Py_RETURN_NONE;

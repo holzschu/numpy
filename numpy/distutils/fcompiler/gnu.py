@@ -117,18 +117,10 @@ class GnuFCompiler(FCompiler):
                 # Makefile used to build Python.  We let disutils handle this
                 # error checking.
                 if not target:
-                    # If MACOSX_DEPLOYMENT_TARGET is not set in the environment,
-                    # we try to get it first from sysconfig and then
-                    # fall back to setting it to 10.9 This is a reasonable default
-                    # even when using the official Python dist and those derived
-                    # from it.
-                    import sysconfig
-                    target = sysconfig.get_config_var('MACOSX_DEPLOYMENT_TARGET')
-                    if not target:
-                        target = '10.9'
-                        s = f'Env. variable MACOSX_DEPLOYMENT_TARGET set to {target}'
-                        warnings.warn(s, stacklevel=2)
-                    os.environ['MACOSX_DEPLOYMENT_TARGET'] = target
+                    target = '10.9'
+                    s = f'Env. variable MACOSX_DEPLOYMENT_TARGET set to {target}'
+                    warnings.warn(s, stacklevel=2)
+                os.environ['MACOSX_DEPLOYMENT_TARGET'] = str(target)
             opt.extend(['-undefined', 'dynamic_lookup', '-bundle'])
         else:
             opt.append("-shared")

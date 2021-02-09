@@ -41,6 +41,7 @@ from .numeric import concatenate, asarray, errstate
 from .numerictypes import (longlong, intc, int_, float_, complex_, bool_,
                            flexible)
 from .overrides import array_function_dispatch, set_module
+import operator
 import warnings
 import contextlib
 
@@ -78,6 +79,7 @@ def _make_options_dict(precision=None, threshold=None, edgeitems=None,
     if legacy not in [None, False, '1.13']:
         warnings.warn("legacy printing option can currently only be '1.13' or "
                       "`False`", stacklevel=3)
+
     if threshold is not None:
         # forbid the bad threshold arg suggested by stack overflow, gh-12351
         if not isinstance(threshold, numbers.Number):
@@ -85,6 +87,14 @@ def _make_options_dict(precision=None, threshold=None, edgeitems=None,
         if np.isnan(threshold):
             raise ValueError("threshold must be non-NAN, try "
                              "sys.maxsize for untruncated representation")
+
+    if precision is not None:
+        # forbid the bad precision arg as suggested by issue #18254
+        try:
+            options['precision'] = operator.index(precision)
+        except TypeError as e:
+            raise TypeError('precision must be an integer') from e
+
     return options
 
 
@@ -146,7 +156,6 @@ def set_printoptions(precision=None, threshold=None, edgeitems=None,
         - 'longcomplexfloat' : composed of two 128-bit floats
         - 'numpystr' : types `numpy.string_` and `numpy.unicode_`
         - 'object' : `np.object_` arrays
-        - 'str' : all other strings
 
         Other keys that can be used to set a group of types at once are:
 
@@ -154,7 +163,7 @@ def set_printoptions(precision=None, threshold=None, edgeitems=None,
         - 'int_kind' : sets 'int'
         - 'float_kind' : sets 'float' and 'longfloat'
         - 'complex_kind' : sets 'complexfloat' and 'longcomplexfloat'
-        - 'str_kind' : sets 'str' and 'numpystr'
+        - 'str_kind' : sets 'numpystr'
     floatmode : str, optional
         Controls the interpretation of the `precision` option for
         floating-point types. Can take the following values
@@ -375,8 +384,7 @@ def _get_formatdict(data, *, precision, floatmode, suppress, sign, legacy,
         'timedelta': lambda: TimedeltaFormat(data),
         'object': lambda: _object_format,
         'void': lambda: str_format,
-        'numpystr': lambda: repr_format,
-        'str': lambda: str}
+        'numpystr': lambda: repr_format}
 
     # we need to wrap values in `formatter` in a lambda, so that the interface
     # is the same as the above values.
@@ -398,8 +406,7 @@ def _get_formatdict(data, *, precision, floatmode, suppress, sign, legacy,
             for key in ['complexfloat', 'longcomplexfloat']:
                 formatdict[key] = indirect(formatter['complex_kind'])
         if 'str_kind' in fkeys:
-            for key in ['numpystr', 'str']:
-                formatdict[key] = indirect(formatter['str_kind'])
+            formatdict['numpystr'] = indirect(formatter['str_kind'])
         for key in formatdict.keys():
             if key in fkeys:
                 formatdict[key] = indirect(formatter[key])
@@ -524,7 +531,7 @@ def array2string(a, max_line_width=None, precision=None,
 
     Parameters
     ----------
-    a : array_like
+    a : ndarray
         Input array.
     max_line_width : int, optional
         Inserts newlines if text is longer than `max_line_width`.
@@ -541,7 +548,7 @@ def array2string(a, max_line_width=None, precision=None,
     separator : str, optional
         Inserted between elements.
     prefix : str, optional
-    suffix: str, optional
+    suffix : str, optional
         The length of the prefix and suffix strings are used to respectively
         align and wrap the output. An array is typically printed as::
 
@@ -572,7 +579,6 @@ def array2string(a, max_line_width=None, precision=None,
         - 'longcomplexfloat' : composed of two 128-bit floats
         - 'void' : type `numpy.void`
         - 'numpystr' : types `numpy.string_` and `numpy.unicode_`
-        - 'str' : all other strings
 
         Other keys that can be used to set a group of types at once are:
 
@@ -580,7 +586,7 @@ def array2string(a, max_line_width=None, precision=None,
         - 'int_kind' : sets 'int'
         - 'float_kind' : sets 'float' and 'longfloat'
         - 'complex_kind' : sets 'complexfloat' and 'longcomplexfloat'
-        - 'str_kind' : sets 'str' and 'numpystr'
+        - 'str_kind' : sets 'numpystr'
     threshold : int, optional
         Total number of array elements which trigger summarization
         rather than full repr.

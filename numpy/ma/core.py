@@ -399,10 +399,10 @@ def _recursive_set_fill_value(fillvalue, dt):
 
     Parameters
     ----------
-    fillvalue: scalar or array_like
+    fillvalue : scalar or array_like
         Scalar or array representing the fill value. If it is of shorter
         length than the number of fields in dt, it will be resized.
-    dt: dtype
+    dt : dtype
         The structured dtype for which to create the fill value.
 
     Returns
@@ -1489,7 +1489,7 @@ def is_mask(m):
 
     See Also
     --------
-    isMaskedArray : Test whether input is an instance of MaskedArray.
+    ma.isMaskedArray : Test whether input is an instance of MaskedArray.
 
     Examples
     --------
@@ -2812,7 +2812,7 @@ class MaskedArray(ndarray):
 
     def __new__(cls, data=None, mask=nomask, dtype=None, copy=False,
                 subok=True, ndmin=0, fill_value=None, keep_mask=True,
-                hard_mask=None, shrink=True, order=None, **options):
+                hard_mask=None, shrink=True, order=None):
         """
         Create a new masked array from scratch.
 
@@ -3538,11 +3538,12 @@ class MaskedArray(ndarray):
         Force the mask to hard.
 
         Whether the mask of a masked array is hard or soft is determined by
-        its `hardmask` property. `harden_mask` sets `hardmask` to True.
+        its `~ma.MaskedArray.hardmask` property. `harden_mask` sets
+        `~ma.MaskedArray.hardmask` to ``True``.
 
         See Also
         --------
-        hardmask
+        ma.MaskedArray.hardmask
 
         """
         self._hardmask = True
@@ -3553,11 +3554,12 @@ class MaskedArray(ndarray):
         Force the mask to soft.
 
         Whether the mask of a masked array is hard or soft is determined by
-        its `hardmask` property. `soften_mask` sets `hardmask` to False.
+        its `~ma.MaskedArray.hardmask` property. `soften_mask` sets
+        `~ma.MaskedArray.hardmask` to ``False``.
 
         See Also
         --------
-        hardmask
+        ma.MaskedArray.hardmask
 
         """
         self._hardmask = False
@@ -3832,7 +3834,7 @@ class MaskedArray(ndarray):
         """
         Return `a` where condition is ``True``.
 
-        If condition is a `MaskedArray`, missing values are considered
+        If condition is a `~ma.MaskedArray`, missing values are considered
         as ``False``.
 
         Parameters
@@ -3851,7 +3853,7 @@ class MaskedArray(ndarray):
         Returns
         -------
         result : MaskedArray
-            A :class:`MaskedArray` object.
+            A :class:`~ma.MaskedArray` object.
 
         Notes
         -----
@@ -4461,7 +4463,7 @@ class MaskedArray(ndarray):
 
         See Also
         --------
-        count_masked : Count masked elements in array or along a given axis.
+        ma.count_masked : Count masked elements in array or along a given axis.
 
         Examples
         --------
@@ -5103,7 +5105,7 @@ class MaskedArray(ndarray):
 
         Notes
         -----
-        The mask is lost if `out` is not a valid :class:`MaskedArray` !
+        The mask is lost if `out` is not a valid :class:`ma.MaskedArray` !
 
         Arithmetic is modular when using integer types, and no error is
         raised on overflow.
@@ -5218,7 +5220,7 @@ class MaskedArray(ndarray):
         --------
         numpy.ndarray.mean : corresponding function for ndarrays
         numpy.mean : Equivalent function
-        numpy.ma.average: Weighted average.
+        numpy.ma.average : Weighted average.
 
         Examples
         --------
@@ -5389,7 +5391,7 @@ class MaskedArray(ndarray):
 
         See Also
         --------
-        numpy.ndarray.around : corresponding function for ndarrays
+        numpy.ndarray.round : corresponding function for ndarrays
         numpy.around : equivalent function
         """
         result = self._data.round(decimals=decimals, out=out).view(type(self))
@@ -5437,7 +5439,7 @@ class MaskedArray(ndarray):
             When the array contains unmasked values at the same extremes of the
             datatype, the ordering of these values and the masked values is
             undefined.
-        fill_value : {var}, optional
+        fill_value : scalar or None, optional
             Value used internally for the masked values.
             If ``fill_value`` is not None, it supersedes ``endwith``.
 
@@ -5449,7 +5451,7 @@ class MaskedArray(ndarray):
 
         See Also
         --------
-        MaskedArray.sort : Describes sorting algorithms used.
+        ma.MaskedArray.sort : Describes sorting algorithms used.
         lexsort : Indirect stable sort with multiple keys.
         numpy.ndarray.sort : Inplace sort.
 
@@ -5495,7 +5497,7 @@ class MaskedArray(ndarray):
         axis : {None, integer}
             If None, the index is into the flattened array, otherwise along
             the specified axis
-        fill_value : {var}, optional
+        fill_value : scalar or None, optional
             Value used to fill in the masked values.  If None, the output of
             minimum_fill_value(self._data) is used instead.
         out : {None, array}, optional
@@ -5541,7 +5543,7 @@ class MaskedArray(ndarray):
         axis : {None, integer}
             If None, the index is into the flattened array, otherwise along
             the specified axis
-        fill_value : {var}, optional
+        fill_value : scalar or None, optional
             Value used to fill in the masked values.  If None, the output of
             maximum_fill_value(self._data) is used instead.
         out : {None, array}, optional
@@ -5592,7 +5594,7 @@ class MaskedArray(ndarray):
             When the array contains unmasked values sorting at the same extremes of the
             datatype, the ordering of these values and the masked values is
             undefined.
-        fill_value : {var}, optional
+        fill_value : scalar or None, optional
             Value used internally for the masked values.
             If ``fill_value`` is not None, it supersedes ``endwith``.
 
@@ -5663,7 +5665,7 @@ class MaskedArray(ndarray):
         out : array_like, optional
             Alternative output array in which to place the result.  Must be of
             the same shape and buffer length as the expected output.
-        fill_value : {var}, optional
+        fill_value : scalar or None, optional
             Value used to fill in the masked values.
             If None, use the output of `minimum_fill_value`.
         keepdims : bool, optional
@@ -5679,7 +5681,7 @@ class MaskedArray(ndarray):
 
         See Also
         --------
-        minimum_fill_value
+        ma.minimum_fill_value
             Returns the minimum filling value for a given datatype.
 
         """
@@ -5797,7 +5799,7 @@ class MaskedArray(ndarray):
         out : array_like, optional
             Alternative output array in which to place the result.  Must
             be of the same shape and buffer length as the expected output.
-        fill_value : {var}, optional
+        fill_value : scalar or None, optional
             Value used to fill in the masked values.
             If None, use the output of maximum_fill_value().
         keepdims : bool, optional
@@ -5813,7 +5815,7 @@ class MaskedArray(ndarray):
 
         See Also
         --------
-        maximum_fill_value
+        ma.maximum_fill_value
             Returns the maximum filling value for a given datatype.
 
         """
@@ -5874,7 +5876,7 @@ class MaskedArray(ndarray):
             Alternative output array in which to place the result. It must
             have the same shape and buffer length as the expected output
             but the type will be cast if necessary.
-        fill_value : {var}, optional
+        fill_value : scalar or None, optional
             Value used to fill in the masked values.
         keepdims : bool, optional
             If this is set to True, the axes which are reduced are left
@@ -6907,12 +6909,11 @@ def compressed(x):
     Return all the non-masked data as a 1-D array.
 
     This function is equivalent to calling the "compressed" method of a
-    `MaskedArray`, see `MaskedArray.compressed` for details.
+    `ma.MaskedArray`, see `ma.MaskedArray.compressed` for details.
 
     See Also
     --------
-    MaskedArray.compressed
-        Equivalent method.
+    ma.MaskedArray.compressed : Equivalent method.
 
     """
     return asanyarray(x).compressed()
@@ -7337,16 +7338,16 @@ def where(condition, x=_NoValue, y=_NoValue):
 
 def choose(indices, choices, out=None, mode='raise'):
     """
-    Use an index array to construct a new array from a set of choices.
+    Use an index array to construct a new array from a list of choices.
 
-    Given an array of integers and a set of n choice arrays, this method
+    Given an array of integers and a list of n choice arrays, this method
     will create a new array that merges each of the choice arrays.  Where a
-    value in `a` is i, the new array will have the value that choices[i]
+    value in `index` is i, the new array will have the value that choices[i]
     contains in the same place.
 
     Parameters
     ----------
-    a : ndarray of ints
+    indices : ndarray of ints
         This array must contain integers in ``[0, n-1]``, where n is the
         number of choices.
     choices : sequence of arrays
@@ -7868,9 +7869,14 @@ def allclose(a, b, masked_equal=True, rtol=1e-5, atol=1e-8):
 
     # make sure y is an inexact type to avoid abs(MIN_INT); will cause
     # casting of x later.
-    dtype = np.result_type(y, 1.)
-    if y.dtype != dtype:
-        y = masked_array(y, dtype=dtype, copy=False)
+    # NOTE: We explicitly allow timedelta, which used to work. This could
+    #       possibly be deprecated. See also gh-18286.
+    #       timedelta works if `atol` is an integer or also a timedelta.
+    #       Although, the default tolerances are unlikely to be useful
+    if y.dtype.kind != "m":
+        dtype = np.result_type(y, 1.)
+        if y.dtype != dtype:
+            y = masked_array(y, dtype=dtype, copy=False)
 
     m = mask_or(getmask(x), getmask(y))
     xinf = np.isinf(masked_array(x, copy=False, mask=m)).filled(False)

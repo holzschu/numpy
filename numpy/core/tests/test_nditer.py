@@ -1,6 +1,9 @@
 import sys
 import pytest
 
+import textwrap
+import subprocess
+
 import numpy as np
 import numpy.core._multiarray_tests as _multiarray_tests
 from numpy import array, arange, nditer, all
@@ -1362,6 +1365,75 @@ def test_iter_copy():
         j = i.copy()
     assert_equal([x[()] for x in j], a.ravel(order='F'))
 
+
+@pytest.mark.parametrize("dtype", np.typecodes["All"])
+@pytest.mark.parametrize("loop_dtype", np.typecodes["All"])
+@pytest.mark.filterwarnings("ignore::numpy.ComplexWarning")
+def test_iter_copy_casts(dtype, loop_dtype):
+    # Ensure the dtype is never flexible:
+    if loop_dtype.lower() == "m":
+        loop_dtype = loop_dtype + "[ms]"
+    elif np.dtype(loop_dtype).itemsize == 0:
+        loop_dtype = loop_dtype + "50"
+
+    # Make things a bit more interesting by requiring a byte-swap as well:
+    arr = np.ones(1000, dtype=np.dtype(dtype).newbyteorder())
+    try:
+        expected = arr.astype(loop_dtype)
+    except Exception:
+        # Some casts are not possible, do not worry about them
+        return
+
+    it = np.nditer((arr,), ["buffered", "external_loop", "refs_ok"],
+                   op_dtypes=[loop_dtype], casting="unsafe")
+
+    if np.issubdtype(np.dtype(loop_dtype), np.number):
+        # Casting to strings may be strange, but for simple dtypes do not rely
+        # on the cast being correct:
+        assert_array_equal(expected, np.ones(1000, dtype=loop_dtype))
+
+    it_copy = it.copy()
+    res = next(it)
+    del it
+    res_copy = next(it_copy)
+    del it_copy
+
+    assert_array_equal(res, expected)
+    assert_array_equal(res_copy, expected)
+
+
+def test_iter_copy_casts_structured():
+    # Test a complicated structured dtype for casting, as it requires
+    # both multiple steps and a more complex casting setup.
+    # Includes a structured -> unstructured (any to object), and many other
+    # casts, which cause this to require all steps in the casting machinery
+    # one level down as well as the iterator copy (which uses NpyAuxData clone)
+    in_dtype = np.dtype([("a", np.dtype("i,")),
+                         ("b", np.dtype(">i,<i,>d,S17,>d,(3)f,O,i1"))])
+    out_dtype = np.dtype([("a", np.dtype("O")),
+                          ("b", np.dtype(">i,>i,S17,>d,>U3,(3)d,i1,O"))])
+    arr = np.ones(1000, dtype=in_dtype)
+
+    it = np.nditer((arr,), ["buffered", "external_loop", "refs_ok"],
+                   op_dtypes=[out_dtype], casting="unsafe")
+    it_copy = it.copy()
+
+    res1 = next(it)
+    del it
+    res2 = next(it_copy)
+    del it_copy
+
+    expected = arr["a"].astype(out_dtype["a"])
+    assert_array_equal(res1["a"], expected)
+    assert_array_equal(res2["a"], expected)
+
+    for field in in_dtype["b"].names:
+        # Note that the .base avoids the subarray field
+        expected = arr["b"][field].astype(out_dtype["b"][field].base)
+        assert_array_equal(res1["b"][field], expected)
+        assert_array_equal(res2["b"][field], expected)
+
+
 def test_iter_allocate_output_simple():
     # Check that the iterator will properly allocate outputs
 
@@ -1886,16 +1958,58 @@ def test_iter_buffered_cast_structured_type():
                  [np.array((1, 2, 3), dtype=sdt2),
                   np.array((4, 5, 6), dtype=sdt2)])
 
+
+def test_iter_buffered_cast_structured_type_failure_with_cleanup():
     # make sure struct type -> struct type with different
     # number of fields fails
     sdt1 = [('a', 'f4'), ('b', 'i8'), ('d', 'O')]
     sdt2 = [('b', 'O'), ('a', 'f8')]
     a = np.array([(1, 2, 3), (4, 5, 6)], dtype=sdt1)
 
-    assert_raises(ValueError, lambda : (
-        nditer(a, ['buffered', 'refs_ok'], ['readwrite'],
-               casting='unsafe',
-               op_dtypes=sdt2)))
+    for intent in ["readwrite", "readonly", "writeonly"]:
+        # If the following assert fails, the place where the error is raised
+        # within nditer may change. That is fine, but it may make sense for
+        # a new (hard to design) test to replace it. The `simple_arr` is
+        # designed to require a multi-step cast (due to having fields).
+        assert np.can_cast(a.dtype, sdt2, casting="unsafe")
+        simple_arr = np.array([1, 2], dtype="i,i")  # requires clean up
+        with pytest.raises(ValueError):
+            nditer((simple_arr, a), ['buffered', 'refs_ok'], [intent, intent],
+                   casting='unsafe', op_dtypes=["f,f", sdt2])
+
+
+def test_buffered_cast_error_paths():
+    with pytest.raises(ValueError):
+        # The input is cast into an `S3` buffer
+        np.nditer((np.array("a", dtype="S1"),), op_dtypes=["i"],
+                  casting="unsafe", flags=["buffered"])
+
+    # The `M8[ns]` is cast into the `S3` output
+    it = np.nditer((np.array(1, dtype="i"),), op_dtypes=["S1"],
+                   op_flags=["writeonly"], casting="unsafe", flags=["buffered"])
+    with pytest.raises(ValueError):
+        with it:
+            buf = next(it)
+            buf[...] = "a"  # cannot be converted to int.
+
+@pytest.mark.skipif(not HAS_REFCOUNT, reason="PyPy seems to not hit this.")
+def test_buffered_cast_error_paths_unraisable():
+    # The following gives an unraisable error. Pytest sometimes captures that
+    # (depending python and/or pytest version). So with Python>=3.8 this can
+    # probably be cleaned out in the future to check for
+    # pytest.PytestUnraisableExceptionWarning:
+    code = textwrap.dedent("""
+        import numpy as np
+    
+        it = np.nditer((np.array(1, dtype="i"),), op_dtypes=["S1"],
+                       op_flags=["writeonly"], casting="unsafe", flags=["buffered"])
+        buf = next(it)
+        buf[...] = "a"
+        del buf, it  # Flushing only happens during deallocate right now.
+        """)
+    res = subprocess.check_output([sys.executable, "-c", code],
+                                  stderr=subprocess.STDOUT, text=True)
+    assert "ValueError" in res
 
 
 def test_iter_buffered_cast_subarray():
@@ -2945,3 +3059,84 @@ def test_partial_iteration_error(in_dtype, buf_dtype):
         it.iternext()
 
     assert count == sys.getrefcount(value)
+
+
+def test_debug_print(capfd):
+    """
+    Matches the expected output of a debug print with the actual output.
+    Note that the iterator dump should not be considered stable API,
+    this test is mainly to ensure the print does not crash.
+
+    Currently uses a subprocess to avoid dealing with the C level `printf`s.
+    """
+    # the expected output with all addresses and sizes stripped (they vary
+    # and/or are platform dependend).
+    expected = """
+    ------ BEGIN ITERATOR DUMP ------
+    | Iterator Address:
+    | ItFlags: BUFFER REDUCE REUSE_REDUCE_LOOPS
+    | NDim: 2
+    | NOp: 2
+    | IterSize: 50
+    | IterStart: 0
+    | IterEnd: 50
+    | IterIndex: 0
+    | Iterator SizeOf:
+    | BufferData SizeOf:
+    | AxisData SizeOf:
+    |
+    | Perm: 0 1
+    | DTypes:
+    | DTypes: dtype('float64') dtype('int32')
+    | InitDataPtrs:
+    | BaseOffsets: 0 0
+    | Operands:
+    | Operand DTypes: dtype('int64') dtype('float64')
+    | OpItFlags:
+    |   Flags[0]: READ CAST ALIGNED
+    |   Flags[1]: READ WRITE CAST ALIGNED REDUCE
+    |
+    | BufferData:
+    |   BufferSize: 50
+    |   Size: 5
+    |   BufIterEnd: 5
+    |   REDUCE Pos: 0
+    |   REDUCE OuterSize: 10
+    |   REDUCE OuterDim: 1
+    |   Strides: 8 4
+    |   Ptrs:
+    |   REDUCE Outer Strides: 40 0
+    |   REDUCE Outer Ptrs:
+    |   ReadTransferFn:
+    |   ReadTransferData:
+    |   WriteTransferFn:
+    |   WriteTransferData:
+    |   Buffers:
+    |
+    | AxisData[0]:
+    |   Shape: 5
+    |   Index: 0
+    |   Strides: 16 8
+    |   Ptrs:
+    | AxisData[1]:
+    |   Shape: 10
+    |   Index: 0
+    |   Strides: 80 0
+    |   Ptrs:
+    ------- END ITERATOR DUMP -------
+    """.strip().splitlines()
+
+    arr1 = np.arange(100, dtype=np.int64).reshape(10, 10)[:, ::2]
+    arr2 = np.arange(5.)
+    it = np.nditer((arr1, arr2), op_dtypes=["d", "i4"], casting="unsafe",
+                   flags=["reduce_ok", "buffered"],
+                   op_flags=[["readonly"], ["readwrite"]])
+    it.debug_print()
+    res = capfd.readouterr().out
+    res = res.strip().splitlines()
+
+    assert len(res) == len(expected)
+    for res_line, expected_line in zip(res, expected):
+        # The actual output may have additional pointers listed that are
+        # stripped from the example output:
+        assert res_line.startswith(expected_line.strip())

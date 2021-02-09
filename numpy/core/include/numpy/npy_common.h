@@ -1,22 +1,24 @@
 #ifndef _NPY_COMMON_H_
 #define _NPY_COMMON_H_
 
+/* need Python.h for npy_intp, npy_uintp */
+#include <Python.h>
+
 /* numpconfig.h is auto-generated */
 #include "numpyconfig.h"
 #ifdef HAVE_NPY_CONFIG_H
 #include <npy_config.h>
 #endif
 
-/* need Python.h for npy_intp, npy_uintp */
-#include <Python.h>
-
 /*
  * using static inline modifiers when defining npy_math functions
  * allows the compiler to make optimizations when possible
  */
-#if defined(NPY_INTERNAL_BUILD) && NPY_INTERNAL_BUILD
 #ifndef NPY_INLINE_MATH
-#define NPY_INLINE_MATH 1
+#if defined(NPY_INTERNAL_BUILD) && NPY_INTERNAL_BUILD
+    #define NPY_INLINE_MATH 1
+#else
+    #define NPY_INLINE_MATH 0
 #endif
 #endif
 

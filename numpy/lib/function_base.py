@@ -846,7 +846,7 @@ def gradient(f, *varargs, axis=None, edge_order=1):
     Returns
     -------
     gradient : ndarray or list of ndarray
-        A set of ndarrays (or a single ndarray if there is only one dimension)
+        A list of ndarrays (or a single ndarray if there is only one dimension)
         corresponding to the derivatives of f with respect to each dimension.
         Each derivative has the same shape as f.
 
@@ -1290,7 +1290,7 @@ def _interp_dispatcher(x, xp, fp, left=None, right=None, period=None):
 @array_function_dispatch(_interp_dispatcher)
 def interp(x, xp, fp, left=None, right=None, period=None):
     """
-    One-dimensional linear interpolation.
+    One-dimensional linear interpolation for monotonically increasing sample points.
 
     Returns the one-dimensional piecewise linear interpolant to a function
     with given discrete data points (`xp`, `fp`), evaluated at `x`.
@@ -1337,8 +1337,8 @@ def interp(x, xp, fp, left=None, right=None, period=None):
     --------
     scipy.interpolate
 
-    Notes
-    -----
+    Warnings
+    --------
     The x-coordinate sequence is expected to be increasing, but this is not
     explicitly enforced.  However, if the sequence `xp` is non-increasing,
     interpolation results are meaningless.
@@ -2268,13 +2268,13 @@ class vectorize:
 
 
 def _cov_dispatcher(m, y=None, rowvar=None, bias=None, ddof=None,
-                    fweights=None, aweights=None):
+                    fweights=None, aweights=None, *, dtype=None):
     return (m, y, fweights, aweights)
 
 
 @array_function_dispatch(_cov_dispatcher)
 def cov(m, y=None, rowvar=True, bias=False, ddof=None, fweights=None,
-        aweights=None):
+        aweights=None, *, dtype=None):
     """
     Estimate a covariance matrix, given data and weights.
 
@@ -2325,6 +2325,11 @@ def cov(m, y=None, rowvar=True, bias=False, ddof=None, fweights=None,
         weights can be used to assign probabilities to observation vectors.
 
         .. versionadded:: 1.10
+    dtype : data-type, optional
+        Data-type of the result. By default, the return data-type will have
+        at least `numpy.float64` precision.
+
+        .. versionadded:: 1.20
 
     Returns
     -------
@@ -2400,13 +2405,16 @@ def cov(m, y=None, rowvar=True, bias=False, ddof=None, fweights=None,
     if m.ndim > 2:
         raise ValueError("m has more than 2 dimensions")
 
-    if y is None:
-        dtype = np.result_type(m, np.float64)
-    else:
+    if y is not None:
         y = np.asarray(y)
         if y.ndim > 2:
             raise ValueError("y has more than 2 dimensions")
-        dtype = np.result_type(m, y, np.float64)
+
+    if dtype is None:
+        if y is None:
+            dtype = np.result_type(m, np.float64)
+        else:
+            dtype = np.result_type(m, y, np.float64)
 
     X = array(m, ndmin=2, dtype=dtype)
     if not rowvar and X.shape[0] != 1:
@@ -2486,12 +2494,14 @@ def cov(m, y=None, rowvar=True, bias=False, ddof=None, fweights=None,
     return c.squeeze()
 
 
-def _corrcoef_dispatcher(x, y=None, rowvar=None, bias=None, ddof=None):
+def _corrcoef_dispatcher(x, y=None, rowvar=None, bias=None, ddof=None, *,
+                         dtype=None):
     return (x, y)
 
 
 @array_function_dispatch(_corrcoef_dispatcher)
-def corrcoef(x, y=None, rowvar=True, bias=np._NoValue, ddof=np._NoValue):
+def corrcoef(x, y=None, rowvar=True, bias=np._NoValue, ddof=np._NoValue, *,
+             dtype=None):
     """
     Return Pearson product-moment correlation coefficients.
 
@@ -2525,6 +2535,11 @@ def corrcoef(x, y=None, rowvar=True, bias=np._NoValue, ddof=np._NoValue):
         Has no effect, do not use.
 
         .. deprecated:: 1.10.0
+    dtype : data-type, optional
+        Data-type of the result. By default, the return data-type will have
+        at least `numpy.float64` precision.
+
+        .. versionadded:: 1.20
 
     Returns
     -------
@@ -2616,7 +2631,7 @@ def corrcoef(x, y=None, rowvar=True, bias=np._NoValue, ddof=np._NoValue):
         # 2015-03-15, 1.10
         warnings.warn('bias and ddof have no effect and are deprecated',
                       DeprecationWarning, stacklevel=3)
-    c = cov(x, y, rowvar)
+    c = cov(x, y, rowvar, dtype=dtype)
     try:
         d = diag(c)
     except ValueError:
@@ -4085,9 +4100,12 @@ def trapz(y, x=None, dx=1.0, axis=-1):
 
     Returns
     -------
-    trapz : float
-        Definite integral as approximated by trapezoidal rule.
-
+    trapz : float or ndarray
+        Definite integral of 'y' = n-dimensional array as approximated along
+        a single axis by the trapezoidal rule. If 'y' is a 1-dimensional array,
+        then the result is a float. If 'n' is greater than 1, then the result
+        is an 'n-1' dimensional array.
+        
     See Also
     --------
     sum, cumsum
@@ -4230,7 +4248,7 @@ def meshgrid(*xi, copy=True, sparse=False, indexing='xy'):
     See Also
     --------
     mgrid : Construct a multi-dimensional "meshgrid" using indexing notation.
-    ogrid : Construct an open multi-dimensional "meshgrid" using indexing 
+    ogrid : Construct an open multi-dimensional "meshgrid" using indexing
             notation.
 
     Examples

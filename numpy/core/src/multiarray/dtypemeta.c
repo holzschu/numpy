@@ -27,6 +27,7 @@ dtypemeta_dealloc(PyArray_DTypeMeta *self) {
 
     Py_XDECREF(self->scalar_type);
     Py_XDECREF(self->singleton);
+    Py_XDECREF(self->castingimpls);
     PyType_Type.tp_dealloc((PyObject *) self);
 }
 
@@ -263,8 +264,17 @@ void_common_instance(PyArray_Descr *descr1, PyArray_Descr *descr2)
      * are equivalent.
      */
     if (!PyArray_CanCastTypeTo(descr1, descr2, NPY_EQUIV_CASTING)) {
-        PyErr_SetString(PyExc_TypeError,
-                "invalid type promotion with structured or void datatype(s).");
+        if (descr1->subarray == NULL && descr1->names == NULL &&
+                descr2->subarray == NULL && descr2->names == NULL) {
+            PyErr_SetString(PyExc_TypeError,
+                    "Invalid type promotion with void datatypes of different "
+                    "lengths. Use the `np.bytes_` datatype instead to pad the "
+                    "shorter value with trailing zero bytes.");
+        }
+        else {
+            PyErr_SetString(PyExc_TypeError,
+                    "invalid type promotion with structured datatype(s).");
+        }
         return NULL;
     }
     Py_INCREF(descr1);
@@ -301,6 +311,18 @@ python_builtins_are_known_scalar_types(
         return 1;
     }
     return 0;
+}
+
+
+static int
+signed_integers_is_known_scalar_types(
+        PyArray_DTypeMeta *cls, PyTypeObject *pytype)
+{
+    if (python_builtins_are_known_scalar_types(cls, pytype)) {
+        return 1;
+    }
+    /* Convert our scalars (raise on too large unsigned and NaN, etc.) */
+    return PyType_IsSubtype(pytype, &PyGenericArrType_Type);
 }
 
 
@@ -353,7 +375,10 @@ default_builtin_common_dtype(PyArray_DTypeMeta *cls, PyArray_DTypeMeta *other)
 {
     assert(cls->type_num < NPY_NTYPES);
     if (!other->legacy || other->type_num > cls->type_num) {
-        /* Let the more generic (larger type number) DType handle this */
+        /*
+         * Let the more generic (larger type number) DType handle this
+         * (note that half is after all others, which works out here.)
+         */
         Py_INCREF(Py_NotImplemented);
         return (PyArray_DTypeMeta *)Py_NotImplemented;
     }
@@ -375,12 +400,25 @@ default_builtin_common_dtype(PyArray_DTypeMeta *cls, PyArray_DTypeMeta *other)
 static PyArray_DTypeMeta *
 string_unicode_common_dtype(PyArray_DTypeMeta *cls, PyArray_DTypeMeta *other)
 {
-    assert(cls->type_num < NPY_NTYPES);
-    if (!other->legacy || other->type_num > cls->type_num ||
-        other->type_num == NPY_OBJECT) {
-        /* Let the more generic (larger type number) DType handle this */
+    assert(cls->type_num < NPY_NTYPES && cls != other);
+    if (!other->legacy || (!PyTypeNum_ISNUMBER(other->type_num) &&
+            /* Not numeric so defer unless cls is unicode and other is string */
+            !(cls->type_num == NPY_UNICODE && other->type_num == NPY_STRING))) {
         Py_INCREF(Py_NotImplemented);
         return (PyArray_DTypeMeta *)Py_NotImplemented;
+    }
+    if (other->type_num != NPY_STRING && other->type_num != NPY_UNICODE) {
+        /* Deprecated 2020-12-19, NumPy 1.21. */
+        if (DEPRECATE_FUTUREWARNING(
+                "Promotion of numbers and bools to strings is deprecated. "
+                "In the future, code such as `np.concatenate((['string'], [0]))` "
+                "will raise an error, while `np.asarray(['string', 0])` will "
+                "return an array with `dtype=object`.  To avoid the warning "
+                "while retaining a string result use `dtype='U'` (or 'S').  "
+                "To get an array of Python objects use `dtype=object`. "
+                "(Warning added in NumPy 1.21)") < 0) {
+            return NULL;
+        }
     }
     /*
      * The builtin types are ordered by complexity (aside from object) here.
@@ -455,11 +493,28 @@ object_common_dtype(
 NPY_NO_EXPORT int
 dtypemeta_wrap_legacy_descriptor(PyArray_Descr *descr)
 {
-    if (Py_TYPE(descr) != &PyArrayDescr_Type) {
+    int has_type_set = Py_TYPE(descr) == &PyArrayDescr_Type;
+
+    if (!has_type_set) {
+        /* Accept if the type was filled in from an existing builtin dtype */
+        for (int i = 0; i < NPY_NTYPES; i++) {
+            PyArray_Descr *builtin = PyArray_DescrFromType(i);
+            has_type_set = Py_TYPE(descr) == Py_TYPE(builtin);
+            Py_DECREF(builtin);
+            if (has_type_set) {
+                break;
+            }
+        }
+    }
+    if (!has_type_set) {
         PyErr_Format(PyExc_RuntimeError,
                 "During creation/wrapping of legacy DType, the original class "
-                "was not PyArrayDescr_Type (it is replaced in this step).");
-        fprintf(stderr, "Inside dtypemeta_wrap_legacy_descriptor, Py_TYPE(descr) != &PyArrayDescr_Type)\n");
+                "was not of PyArrayDescr_Type (it is replaced in this step). "
+                "The extension creating a custom DType for type %S must be "
+                "modified to ensure `Py_TYPE(descr) == &PyArrayDescr_Type` or "
+                "that of an existing dtype (with the assumption it is just "
+                "copied over and can be replaced).",
+                descr->typeobj, Py_TYPE(descr));
         return -1;
     }
 
@@ -544,7 +599,12 @@ dtypemeta_wrap_legacy_descriptor(PyArray_Descr *descr)
 
     /* Let python finish the initialization (probably unnecessary) */
     if (PyType_Ready((PyTypeObject *)dtype_class) < 0) {
-        fprintf(stderr, "Inside dtypemeta_wrap_legacy_descriptor, PyType_Ready((PyTypeObject *)dtype_class) < 0\n");
+        Py_DECREF(dtype_class);
+        return -1;
+    }
+    dtype_class->castingimpls = PyDict_New();
+    if (dtype_class->castingimpls == NULL) {
+        Py_DECREF(dtype_class);
         return -1;
     }
 
@@ -567,6 +627,11 @@ dtypemeta_wrap_legacy_descriptor(PyArray_Descr *descr)
     dtype_class->is_known_scalar_type = python_builtins_are_known_scalar_types;
     dtype_class->common_dtype = default_builtin_common_dtype;
     dtype_class->common_instance = NULL;
+
+    if (PyTypeNum_ISSIGNED(dtype_class->type_num)) {
+        /* Convert our scalars (raise on too large unsigned and NaN, etc.) */
+        dtype_class->is_known_scalar_type = signed_integers_is_known_scalar_types;
+    }
 
     if (PyTypeNum_ISUSERDEF(descr->type_num)) {
         dtype_class->common_dtype = legacy_userdtype_common_dtype_function;

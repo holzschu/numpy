@@ -95,7 +95,7 @@ def zeros_like(a, dtype=None, order='K', subok=True, shape=None):
         .. versionadded:: 1.6.0
     subok : bool, optional.
         If True, then the newly created array will use the sub-class
-        type of 'a', otherwise it will be a base-class array. Defaults
+        type of `a`, otherwise it will be a base-class array. Defaults
         to True.
     shape : int or sequence of ints, optional.
         Overrides the shape of the result. If order='K' and the number of
@@ -237,7 +237,7 @@ def ones_like(a, dtype=None, order='K', subok=True, shape=None):
         .. versionadded:: 1.6.0
     subok : bool, optional.
         If True, then the newly created array will use the sub-class
-        type of 'a', otherwise it will be a base-class array. Defaults
+        type of `a`, otherwise it will be a base-class array. Defaults
         to True.
     shape : int or sequence of ints, optional.
         Overrides the shape of the result. If order='K' and the number of
@@ -299,7 +299,7 @@ def full(shape, fill_value, dtype=None, order='C', *, like=None):
         Fill value.
     dtype : data-type, optional
         The desired data-type for the array  The default, None, means
-         `np.array(fill_value).dtype`.
+         ``np.array(fill_value).dtype``.
     order : {'C', 'F'}, optional
         Whether to store multidimensional data in C- or Fortran-contiguous
         (row- or column-wise) order in memory.
@@ -374,7 +374,7 @@ def full_like(a, fill_value, dtype=None, order='K', subok=True, shape=None):
         as possible.
     subok : bool, optional.
         If True, then the newly created array will use the sub-class
-        type of 'a', otherwise it will be a base-class array. Defaults
+        type of `a`, otherwise it will be a base-class array. Defaults
         to True.
     shape : int or sequence of ints, optional.
         Overrides the shape of the result. If order='K' and the number of
@@ -409,7 +409,7 @@ def full_like(a, fill_value, dtype=None, order='K', subok=True, shape=None):
 
     >>> y = np.arange(6, dtype=np.double)
     >>> np.full_like(y, 0.1)
-    array([0.1,  0.1,  0.1,  0.1,  0.1,  0.1])
+    array([0.1, 0.1, 0.1, 0.1, 0.1, 0.1])
 
     """
     res = empty_like(a, dtype=dtype, order=order, subok=subok, shape=shape)
@@ -1427,12 +1427,11 @@ def moveaxis(a, source, destination):
 
     See Also
     --------
-    transpose: Permute the dimensions of an array.
-    swapaxes: Interchange two axes of an array.
+    transpose : Permute the dimensions of an array.
+    swapaxes : Interchange two axes of an array.
 
     Examples
     --------
-
     >>> x = np.zeros((3, 4, 5))
     >>> np.moveaxis(x, 0, -1).shape
     (4, 5, 3)
@@ -2351,8 +2350,13 @@ def isclose(a, b, rtol=1.e-5, atol=1.e-8, equal_nan=False):
     # Make sure y is an inexact type to avoid bad behavior on abs(MIN_INT).
     # This will cause casting of x later. Also, make sure to allow subclasses
     # (e.g., for numpy.ma).
-    dt = multiarray.result_type(y, 1.)
-    y = array(y, dtype=dt, copy=False, subok=True)
+    # NOTE: We explicitly allow timedelta, which used to work. This could
+    #       possibly be deprecated. See also gh-18286.
+    #       timedelta works if `atol` is an integer or also a timedelta.
+    #       Although, the default tolerances are unlikely to be useful
+    if y.dtype.kind != "m":
+        dt = multiarray.result_type(y, 1.)
+        y = array(y, dtype=dt, copy=False, subok=True)
 
     xfin = isfinite(x)
     yfin = isfinite(y)
