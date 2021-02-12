@@ -446,14 +446,6 @@ typedef struct _buffer_info_t_tag {
 } _buffer_info_t;
 
 
-#if TARGET_OS_IPHONE
-void release_buffer_info_cache() {
-    if (_buffer_info_cache == NULL) return;
-    PyDict_Clear(_buffer_info_cache);
-    _buffer_info_cache = NULL; 
-}
-#endif
-
 /* Fill in the info structure */
 static _buffer_info_t*
 _buffer_info_new(PyObject *obj, int flags)

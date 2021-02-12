@@ -186,7 +186,6 @@ class GnuFCompiler(FCompiler):
         lib_gfortran_dir = self.get_libgfortran_dir()
         if lib_gfortran_dir:
             opt.append(lib_gfortran_dir)
-        print("NUMPY: get_library_dirs: ", opt)
         return opt
 
     def get_libraries(self):
@@ -208,7 +207,6 @@ class GnuFCompiler(FCompiler):
             opt.append('gcc')
         if sys.platform == 'darwin':
             opt.append('cc_dynamic')
-        print("NUMPY: get_libraries: ", opt)
         return opt
 
     def get_flags_debug(self):

@@ -1777,7 +1777,7 @@ NPY_NO_EXPORT PyTypeObject PyArray_Type = {
 NPY_NO_EXPORT void reset_PyArray_Type(void)
 {
     PyArray_Type.tp_name  = "numpy.ndarray";
-    PyArray_Type.tp_basicsize  = NPY_SIZEOF_PYARRAYOBJECT;
+    PyArray_Type.tp_basicsize  = sizeof(PyArrayObject_fields);
     PyArray_Type.tp_itemsize  = 0;
     PyArray_Type.tp_dealloc  = (destructor)array_dealloc;
     PyArray_Type.tp_vectorcall_offset = 0; 

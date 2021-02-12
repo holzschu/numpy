@@ -74,7 +74,7 @@ NPY_NO_EXPORT int NPY_NUMUSERTYPES = 0;
 // iOS: clean cached values.
 #if TARGET_OS_IPHONE
 // Cache cleanup on leaving:
-NPY_NO_EXPORT void release_buffer_info_cache(void);
+// NPY_NO_EXPORT void release_buffer_info_cache(void);
 NPY_NO_EXPORT void npy_clean_caches(void);
 NPY_NO_EXPORT void PyUFuncOverride_ResetDefaultArrayUfunc(void);
 NPY_NO_EXPORT void clear_descriptor_caches(void);
@@ -4196,9 +4196,14 @@ normalize_axis_index(PyObject *NPY_UNUSED(self), PyObject *args, PyObject *kwds)
 }
 
 
+#if TARGET_OS_IPHONE
+static int initialized = 0;
+#endif
 static PyObject *
 _reload_guard(PyObject *NPY_UNUSED(self)) {
+#if !TARGET_OS_IPHONE
     static int initialized = 0;
+#endif
 
 #if !defined(PYPY_VERSION)
     if (PyThreadState_Get()->interp != PyInterpreterState_Main()) {
@@ -4618,13 +4623,14 @@ NPY_VISIBILITY_HIDDEN PyObject * npy_ma_str_numpy = NULL;
 static void
 multiarray_umath_free(PyObject *m)
 {
-    release_buffer_info_cache();
+    // release_buffer_info_cache();
     npy_clean_caches();
     PyUFuncOverride_ResetDefaultArrayUfunc();
     // npy_cache_import: strfuncs.c:
     clear_strfuncs_cache();
     // array_coercion.c
     clear_global_pytype_to_type_dict(); 
+    initialized = 0;
 }
 #endif
 
