@@ -121,7 +121,9 @@ class GnuFCompiler(FCompiler):
                     s = f'Env. variable MACOSX_DEPLOYMENT_TARGET set to {target}'
                     warnings.warn(s, stacklevel=2)
                 os.environ['MACOSX_DEPLOYMENT_TARGET'] = str(target)
-            opt.extend(['-undefined', 'dynamic_lookup', '-bundle'])
+                opt.extend(['-undefined', 'dynamic_lookup', '-bundle'])
+            else:
+                opt.extend(['-dynamiclib'])
         else:
             opt.append("-shared")
         if sys.platform.startswith('sunos'):
