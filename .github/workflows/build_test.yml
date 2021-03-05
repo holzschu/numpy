@@ -3,11 +3,11 @@ name: Build_Test
 on:
   push:
     branches:
-      - master
+      - main
       - maintenance/**
   pull_request:
     branches:
-      - master
+      - main
       - maintenance/**
 
 defaults:
@@ -80,7 +80,7 @@ jobs:
 
   full:
     needs: smoke_test
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-18.04
     env:
       USE_WHEEL: 1
       RUN_FULL_TESTS: 1

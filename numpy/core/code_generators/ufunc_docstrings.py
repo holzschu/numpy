@@ -781,7 +781,7 @@ add_newdoc('numpy.core.umath', 'ceil',
 
     See Also
     --------
-    floor, trunc, rint
+    floor, trunc, rint, fix
 
     Examples
     --------
@@ -813,7 +813,7 @@ add_newdoc('numpy.core.umath', 'trunc',
 
     See Also
     --------
-    ceil, floor, rint
+    ceil, floor, rint, fix
 
     Notes
     -----
@@ -1374,13 +1374,14 @@ add_newdoc('numpy.core.umath', 'floor',
 
     See Also
     --------
-    ceil, trunc, rint
+    ceil, trunc, rint, fix
 
     Notes
     -----
-    Some spreadsheet programs calculate the "floor-towards-zero", in other
-    words ``floor(-2.5) == -2``.  NumPy instead uses the definition of
-    `floor` where `floor(-2.5) == -3`.
+    Some spreadsheet programs calculate the "floor-towards-zero", where
+    ``floor(-2.5) == -2``.  NumPy instead uses the definition of
+    `floor` where `floor(-2.5) == -3`. The "floor-towards-zero"
+    function is called ``fix`` in NumPy.
 
     Examples
     --------
@@ -2808,8 +2809,8 @@ add_newdoc('numpy.core.umath', 'matmul',
       (9, 5, 7, 3)
       >>> # n is 7, k is 4, m is 3
 
-    The matmul function implements the semantics of the `@` operator introduced
-    in Python 3.5 following PEP465.
+    The matmul function implements the semantics of the ``@`` operator introduced
+    in Python 3.5 following :pep:`465`.
 
     Examples
     --------
@@ -3486,7 +3487,7 @@ add_newdoc('numpy.core.umath', 'rint',
 
     See Also
     --------
-    ceil, floor, trunc
+    fix, ceil, floor, trunc
 
     Examples
     --------

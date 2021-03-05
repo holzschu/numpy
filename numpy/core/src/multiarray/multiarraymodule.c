@@ -1872,6 +1872,8 @@ array_empty(PyObject *NPY_UNUSED(ignored), PyObject *args, PyObject *kwds)
     array_function_result = array_implement_c_array_function_creation(
             "empty", args, kwds);
     if (array_function_result != Py_NotImplemented) {
+        Py_XDECREF(typecode);
+        npy_free_cache_dim_obj(shape);
         return array_function_result;
     }
 
@@ -2081,6 +2083,8 @@ array_zeros(PyObject *NPY_UNUSED(ignored), PyObject *args, PyObject *kwds)
     array_function_result = array_implement_c_array_function_creation(
             "zeros", args, kwds);
     if (array_function_result != Py_NotImplemented) {
+        Py_XDECREF(typecode);
+        npy_free_cache_dim_obj(shape);
         return array_function_result;
     }
 
@@ -2202,11 +2206,13 @@ array_fromfile(PyObject *NPY_UNUSED(ignored), PyObject *args, PyObject *keywds)
     array_function_result = array_implement_c_array_function_creation(
             "fromfile", args, keywds);
     if (array_function_result != Py_NotImplemented) {
+        Py_XDECREF(type);
         return array_function_result;
     }
 
     file = NpyPath_PathlikeToFspath(file);
     if (file == NULL) {
+        Py_XDECREF(type);
         return NULL;
     }
 
@@ -2321,6 +2327,7 @@ array_frombuffer(PyObject *NPY_UNUSED(ignored), PyObject *args, PyObject *keywds
     array_function_result = array_implement_c_array_function_creation(
             "frombuffer", args, keywds);
     if (array_function_result != Py_NotImplemented) {
+        Py_XDECREF(type);
         return array_function_result;
     }
 

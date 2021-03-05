@@ -1,4 +1,5 @@
 import builtins
+import os
 import sys
 import datetime as dt
 from abc import abstractmethod
@@ -280,6 +281,11 @@ from numpy.core.arrayprint import (
     printoptions as printoptions,
 )
 
+from numpy.core.einsumfunc import (
+    einsum as einsum,
+    einsum_path as einsum_path,
+)
+
 from numpy.core.numeric import (
     zeros_like as zeros_like,
     ones as ones,
@@ -332,6 +338,27 @@ from numpy.core.shape_base import (
     vstack as vstack,
 )
 
+from numpy.lib.index_tricks import (
+    ravel_multi_index as ravel_multi_index,
+    unravel_index as unravel_index,
+    mgrid as mgrid,
+    ogrid as ogrid,
+    r_ as r_,
+    c_ as c_,
+    s_ as s_,
+    index_exp as index_exp,
+    ix_ as ix_,
+    fill_diagonal as fill_diagonal,
+    diag_indices as diag_indices,
+    diag_indices_from as diag_indices_from,
+)
+
+from numpy.lib.ufunclike import (
+    fix as fix,
+    isposinf as isposinf,
+    isneginf as isneginf,
+)
+
 __all__: List[str]
 __path__: List[str]
 __version__: str
@@ -363,7 +390,6 @@ busday_count: Any
 busday_offset: Any
 busdaycalendar: Any
 byte_bounds: Any
-c_: Any
 can_cast: Any
 cast: Any
 chararray: Any
@@ -383,8 +409,6 @@ delete: Any
 deprecate: Any
 deprecate_with_doc: Any
 diag: Any
-diag_indices: Any
-diag_indices_from: Any
 diagflat: Any
 diff: Any
 digitize: Any
@@ -394,14 +418,18 @@ dot: Any
 dsplit: Any
 dstack: Any
 ediff1d: Any
-einsum: Any
-einsum_path: Any
 expand_dims: Any
 extract: Any
-eye: Any
-fill_diagonal: Any
+def eye(
+    N: int,
+    M: Optional[int] = ...,
+    k: int = ...,
+    dtype: DTypeLike = ...,
+    order: _OrderCF = ...,
+    *,
+    like: Optional[ArrayLike] = ...
+) -> ndarray[Any, Any]: ...
 finfo: Any
-fix: Any
 flip: Any
 fliplr: Any
 flipud: Any
@@ -427,7 +455,6 @@ i0: Any
 iinfo: Any
 imag: Any
 in1d: Any
-index_exp: Any
 info: Any
 inner: Any
 insert: Any
@@ -437,12 +464,9 @@ is_busday: Any
 iscomplex: Any
 iscomplexobj: Any
 isin: Any
-isneginf: Any
-isposinf: Any
 isreal: Any
 isrealobj: Any
 iterable: Any
-ix_: Any
 kaiser: Any
 kron: Any
 lexsort: Any
@@ -459,7 +483,6 @@ may_share_memory: Any
 median: Any
 memmap: Any
 meshgrid: Any
-mgrid: Any
 min: Any
 min_scalar_type: Any
 mintypecode: Any
@@ -481,14 +504,11 @@ nanstd: Any
 nansum: Any
 nanvar: Any
 nbytes: Any
-ndenumerate: Any
 ndfromtxt: Any
-ndindex: Any
 nditer: Any
 nested_iters: Any
 newaxis: Any
 numarray: Any
-ogrid: Any
 packbits: Any
 pad: Any
 percentile: Any
@@ -509,8 +529,6 @@ promote_types: Any
 put_along_axis: Any
 putmask: Any
 quantile: Any
-r_: Any
-ravel_multi_index: Any
 real: Any
 real_if_close: Any
 recarray: Any
@@ -523,7 +541,6 @@ rot90: Any
 round: Any
 round_: Any
 row_stack: Any
-s_: Any
 save: Any
 savetxt: Any
 savez: Any
@@ -555,7 +572,6 @@ typename: Any
 union1d: Any
 unique: Any
 unpackbits: Any
-unravel_index: Any
 unwrap: Any
 vander: Any
 vdot: Any
@@ -904,7 +920,7 @@ class _ArrayOrScalarCommon:
     # NOTE: `tostring()` is deprecated and therefore excluded
     # def tostring(self, order=...): ...
     def tofile(
-        self, fid: Union[IO[bytes], str], sep: str = ..., format: str = ...
+        self, fid: Union[IO[bytes], str, bytes, os.PathLike[Any]], sep: str = ..., format: str = ...
     ) -> None: ...
     # generics and 0d arrays return builtin scalars
     def tolist(self) -> Any: ...
@@ -2884,3 +2900,31 @@ class errstate(Generic[_CallType], ContextDecorator):
         __exc_value: Optional[BaseException],
         __traceback: Optional[TracebackType],
     ) -> None: ...
+
+class ndenumerate(Generic[_ScalarType]):
+    iter: flatiter[_ArrayND[_ScalarType]]
+    @overload
+    def __new__(
+        cls, arr: _NestedSequence[_SupportsArray[dtype[_ScalarType]]],
+    ) -> ndenumerate[_ScalarType]: ...
+    @overload
+    def __new__(cls, arr: _NestedSequence[str]) -> ndenumerate[str_]: ...
+    @overload
+    def __new__(cls, arr: _NestedSequence[bytes]) -> ndenumerate[bytes_]: ...
+    @overload
+    def __new__(cls, arr: _NestedSequence[bool]) -> ndenumerate[bool_]: ...
+    @overload
+    def __new__(cls, arr: _NestedSequence[int]) -> ndenumerate[int_]: ...
+    @overload
+    def __new__(cls, arr: _NestedSequence[float]) -> ndenumerate[float_]: ...
+    @overload
+    def __new__(cls, arr: _NestedSequence[complex]) -> ndenumerate[complex_]: ...
+    @overload
+    def __new__(cls, arr: _RecursiveSequence) -> ndenumerate[Any]: ...
+    def __next__(self: ndenumerate[_ScalarType]) -> Tuple[_Shape, _ScalarType]: ...
+    def __iter__(self: _T) -> _T: ...
+
+class ndindex:
+    def __init__(self, *shape: SupportsIndex) -> None: ...
+    def __iter__(self: _T) -> _T: ...
+    def __next__(self) -> _Shape: ...
