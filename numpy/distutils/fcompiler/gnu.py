@@ -121,7 +121,9 @@ class GnuFCompiler(FCompiler):
                     s = f'Env. variable MACOSX_DEPLOYMENT_TARGET set to {target}'
                     warnings.warn(s, stacklevel=2)
                 os.environ['MACOSX_DEPLOYMENT_TARGET'] = str(target)
-                opt.extend(['-undefined', 'dynamic_lookup', '-bundle'])
+                # -L/Library/Developer/CommandLineTools/SDKs/MacOSX.sdk/usr/lib is now required when compiling on OSX 11
+                # Weird but true
+                opt.extend(['-undefined', 'dynamic_lookup', '-bundle', '-L/Library/Developer/CommandLineTools/SDKs/MacOSX.sdk/usr/lib'])
             else:
                 opt.extend(['-dynamiclib'])
         else:
