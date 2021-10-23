@@ -94,7 +94,8 @@ templates_path = ['_templates']
 # The suffix of source filenames.
 source_suffix = '.rst'
 
-master_doc = 'contents'
+# Will change to `root_doc` in Sphinx 4
+master_doc = 'index'
 
 # General substitutions.
 project = 'NumPy'
@@ -285,7 +286,7 @@ intersphinx_mapping = {
     'neps': ('https://numpy.org/neps', None),
     'python': ('https://docs.python.org/dev', None),
     'scipy': ('https://docs.scipy.org/doc/scipy/reference', None),
-    'matplotlib': ('https://matplotlib.org', None),
+    'matplotlib': ('https://matplotlib.org/stable', None),
     'imageio': ('https://imageio.readthedocs.io/en/stable', None),
     'skimage': ('https://scikit-image.org/docs/stable', None),
     'pandas': ('https://pandas.pydata.org/pandas-docs/stable', None),
@@ -442,7 +443,7 @@ def linkcode_resolve(domain, info):
         linespec = ""
 
     if 'dev' in numpy.__version__:
-        return "https://github.com/numpy/numpy/blob/master/numpy/%s%s" % (
+        return "https://github.com/numpy/numpy/blob/main/numpy/%s%s" % (
            fn, linespec)
     else:
         return "https://github.com/numpy/numpy/blob/v%s/numpy/%s%s" % (

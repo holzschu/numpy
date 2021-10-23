@@ -386,7 +386,7 @@ cdef class Generator:
                     0.0, '', CONS_NONE,
                     None)
 
-    def standard_exponential(self, size=None, dtype=np.float64, method=u'zig', out=None):
+    def standard_exponential(self, size=None, dtype=np.float64, method='zig', out=None):
         """
         standard_exponential(size=None, dtype=np.float64, method='zig', out=None)
 
@@ -426,12 +426,12 @@ cdef class Generator:
         """
         _dtype = np.dtype(dtype)
         if _dtype == np.float64:
-            if method == u'zig':
+            if method == 'zig':
                 return double_fill(&random_standard_exponential_fill, &self._bitgen, size, self.lock, out)
             else:
                 return double_fill(&random_standard_exponential_inv_fill, &self._bitgen, size, self.lock, out)
         elif _dtype == np.float32:
-            if method == u'zig':
+            if method == 'zig':
                 return float_fill(&random_standard_exponential_fill_f, &self._bitgen, size, self.lock, out)
             else:
                 return float_fill(&random_standard_exponential_inv_fill_f, &self._bitgen, size, self.lock, out)
@@ -579,13 +579,13 @@ cdef class Generator:
 
         Returns
         -------
-        out : str
+        out : bytes
             String of length `length`.
 
         Examples
         --------
         >>> np.random.default_rng().bytes(10)
-        ' eh\\x85\\x022SZ\\xbf\\xa4' #random
+        b'\xfeC\x9b\x86\x17\xf2\xa1\xafcp' # random
 
         """
         cdef Py_ssize_t n_uint32 = ((length - 1) // 4 + 1)
@@ -643,6 +643,12 @@ cdef class Generator:
         See Also
         --------
         integers, shuffle, permutation
+
+        Notes
+        -----
+        Setting user-specified probabilities through ``p`` uses a more general but less
+        efficient sampler than the default. The general sampler produces a different sample
+        than the optimized sampler even if each element of ``p`` is 1 / len(a).
 
         Examples
         --------
@@ -996,7 +1002,7 @@ cdef class Generator:
         --------
         >>> rng = np.random.default_rng()
         >>> rng.standard_normal()
-        2.1923875335537315 #random
+        2.1923875335537315 # random
 
         >>> s = rng.standard_normal(8000)
         >>> s
@@ -1732,33 +1738,45 @@ cdef class Generator:
         ...                    7515, 8230, 8770])
 
         Does their energy intake deviate systematically from the recommended
-        value of 7725 kJ?
+        value of 7725 kJ? Our null hypothesis will be the absence of deviation,
+        and the alternate hypothesis will be the presence of an effect that could be
+        either positive or negative, hence making our test 2-tailed. 
 
-        We have 10 degrees of freedom, so is the sample mean within 95% of the
-        recommended value?
+        Because we are estimating the mean and we have N=11 values in our sample,
+        we have N-1=10 degrees of freedom. We set our signifance level to 95% and 
+        compute the t statistic using the empirical mean and empirical standard 
+        deviation of our intake. We use a ddof of 1 to base the computation of our 
+        empirical standard deviation on an unbiased estimate of the variance (note:
+        the final estimate is not unbiased due to the concave nature of the square 
+        root).
 
-        >>> s = np.random.default_rng().standard_t(10, size=100000)
         >>> np.mean(intake)
         6753.636363636364
         >>> intake.std(ddof=1)
         1142.1232221373727
-
-        Calculate the t statistic, setting the ddof parameter to the unbiased
-        value so the divisor in the standard deviation will be degrees of
-        freedom, N-1.
-
         >>> t = (np.mean(intake)-7725)/(intake.std(ddof=1)/np.sqrt(len(intake)))
+        >>> t
+        -2.8207540608310198
+
+        We draw 1000000 samples from Student's t distribution with the adequate
+        degrees of freedom.
+
         >>> import matplotlib.pyplot as plt
+        >>> s = np.random.default_rng().standard_t(10, size=1000000)
         >>> h = plt.hist(s, bins=100, density=True)
 
-        For a one-sided t-test, how far out in the distribution does the t
-        statistic appear?
+        Does our t statistic land in one of the two critical regions found at 
+        both tails of the distribution?
 
-        >>> np.sum(s<t) / float(len(s))
-        0.0090699999999999999  #random
+        >>> np.sum(np.abs(t) < np.abs(s)) / float(len(s))
+        0.018318  #random < 0.05, statistic is in critical region
 
-        So the p-value is about 0.009, which says the null hypothesis has a
-        probability of about 99% of being true.
+        The probability value for this 2-tailed test is about 1.83%, which is 
+        lower than the 5% pre-determined significance threshold. 
+
+        Therefore, the probability of observing values as extreme as our intake
+        conditionally on the null hypothesis being true is too low, and we reject 
+        the null hypothesis of no deviation. 
 
         """
         return cont(&random_standard_t, &self._bitgen, size, self.lock, 1,
@@ -3013,8 +3031,9 @@ cdef class Generator:
         Parameters
         ----------
         lam : float or array_like of floats
-            Expectation of interval, must be >= 0. A sequence of expectation
-            intervals must be broadcastable over the requested size.
+            Expected number of events occurring in a fixed-time interval,
+            must be >= 0. A sequence must be broadcastable over the requested
+            size.
         size : int or tuple of ints, optional
             Output shape.  If the given shape is, e.g., ``(m, n, k)``, then
             ``m * n * k`` samples are drawn.  If size is ``None`` (default),
@@ -3196,7 +3215,7 @@ cdef class Generator:
         How many trials succeeded after a single run?
 
         >>> (z == 1).sum() / 10000.
-        0.34889999999999999 #random
+        0.34889999999999999 # random
 
         """
         return disc(&random_geometric, &self._bitgen, size, self.lock, 1, 0,
@@ -3737,7 +3756,20 @@ cdef class Generator:
         pix = <double*>np.PyArray_DATA(parr)
         check_array_constraint(parr, 'pvals', CONS_BOUNDED_0_1)
         if kahan_sum(pix, d-1) > (1.0 + 1e-12):
-            raise ValueError("sum(pvals[:-1]) > 1.0")
+            # When floating, but not float dtype, and close, improve the error
+            # 1.0001 works for float16 and float32
+            if (isinstance(pvals, np.ndarray)
+                    and np.issubdtype(pvals.dtype, np.floating)
+                    and pvals.dtype != float
+                    and pvals.sum() < 1.0001):
+                msg = ("sum(pvals[:-1].astype(np.float64)) > 1.0. The pvals "
+                       "array is cast to 64-bit floating point prior to "
+                       "checking the sum. Precision changes when casting may "
+                       "cause problems even if the sum of the original pvals "
+                       "is valid.")
+            else:
+                msg = "sum(pvals[:-1]) > 1.0"
+            raise ValueError(msg)
 
         if np.PyArray_NDIM(on) != 0: # vector
             check_array_constraint(on, 'n', CONS_NON_NEGATIVE)
@@ -4398,7 +4430,9 @@ cdef class Generator:
             char* x_ptr
             char* buf_ptr
 
-        axis = normalize_axis_index(axis, np.ndim(x))
+        if isinstance(x, np.ndarray):
+            # Only call ndim on ndarrays, see GH 18142
+            axis = normalize_axis_index(axis, np.ndim(x))
 
         if type(x) is np.ndarray and x.ndim == 1 and x.size:
             # Fast, statically typed path: shuffle the underlying buffer.
@@ -4443,11 +4477,12 @@ cdef class Generator:
             if not isinstance(x, Sequence):
                 # See gh-18206. We may decide to deprecate here in the future.
                 warnings.warn(
-                    "`x` isn't a recognized object; `shuffle` is not guaranteed "
-                    "to behave correctly. E.g., non-numpy array/tensor objects "
-                    "with view semantics may contain duplicates after shuffling.",
-                    UserWarning, stacklevel=2
-                )
+                    f"you are shuffling a '{type(x).__name__}' object "
+                    "which is not a subclass of 'Sequence'; "
+                    "`shuffle` is not guaranteed to behave correctly. "
+                    "E.g., non-numpy array/tensor objects with view semantics "
+                    "may contain duplicates after shuffling.",
+                    UserWarning, stacklevel=1)  # Cython does not add a level
 
             if axis != 0:
                 raise NotImplementedError("Axis argument is only supported "

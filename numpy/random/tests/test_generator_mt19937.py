@@ -10,7 +10,7 @@ from numpy.testing import (
     assert_warns, assert_no_warnings, assert_array_equal,
     assert_array_almost_equal, suppress_warnings)
 
-from numpy.random import Generator, MT19937, SeedSequence
+from numpy.random import Generator, MT19937, SeedSequence, RandomState
 
 random = Generator(MT19937())
 
@@ -142,6 +142,14 @@ class TestMultinomial:
         assert_raises(ValueError, random.multinomial, 10, [[[0], [1]], [[1], [0]]])
         assert_raises(ValueError, random.multinomial, 10, np.array([[0, 1], [1, 0]]))
 
+    def test_multinomial_pvals_float32(self):
+        x = np.array([9.9e-01, 9.9e-01, 1.0e-09, 1.0e-09, 1.0e-09, 1.0e-09,
+                      1.0e-09, 1.0e-09, 1.0e-09, 1.0e-09], dtype=np.float32)
+        pvals = x / x.sum()
+        random = Generator(MT19937(1432985819))
+        match = r"[\w\s]*pvals array is cast to 64-bit floating"
+        with pytest.raises(ValueError, match=match):
+            random.multinomial(1, pvals)
 
 class TestMultivariateHypergeometric:
 
@@ -1735,6 +1743,26 @@ class TestRandomDist:
         r = random.vonmises(mu=0., kappa=np.nan)
         assert_(np.isnan(r))
 
+    @pytest.mark.parametrize("kappa", [1e4, 1e15])
+    def test_vonmises_large_kappa(self, kappa):
+        random = Generator(MT19937(self.seed))
+        rs = RandomState(random.bit_generator)
+        state = random.bit_generator.state
+
+        random_state_vals = rs.vonmises(0, kappa, size=10)
+        random.bit_generator.state = state
+        gen_vals = random.vonmises(0, kappa, size=10)
+        if kappa < 1e6:
+            assert_allclose(random_state_vals, gen_vals)
+        else:
+            assert np.all(random_state_vals != gen_vals)
+
+    @pytest.mark.parametrize("mu", [-7., -np.pi, -3.1, np.pi, 3.2])
+    @pytest.mark.parametrize("kappa", [1e-9, 1e-6, 1, 1e3, 1e15])
+    def test_vonmises_large_kappa_range(self, mu, kappa):
+        r = random.vonmises(mu, kappa, 50)
+        assert_(np.all(r > -np.pi) and np.all(r <= np.pi))
+
     def test_wald(self):
         random = Generator(MT19937(self.seed))
         actual = random.wald(mean=1.23, scale=1.54, size=(3, 2))
@@ -2526,3 +2554,11 @@ def test_broadcast_size_scalar():
     random.normal(mu, sigma, size=3)
     with pytest.raises(ValueError):
         random.normal(mu, sigma, size=2)
+
+
+def test_ragged_shuffle():
+    # GH 18142
+    seq = [[], [], 1]
+    gen = Generator(MT19937(0))
+    assert_no_warnings(gen.shuffle, seq)
+    assert seq == [1, [], []]
