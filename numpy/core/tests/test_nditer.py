@@ -9,7 +9,7 @@ import numpy.core._multiarray_tests as _multiarray_tests
 from numpy import array, arange, nditer, all
 from numpy.testing import (
     assert_, assert_equal, assert_array_equal, assert_raises,
-    HAS_REFCOUNT, suppress_warnings
+    HAS_REFCOUNT, suppress_warnings, break_cycles
     )
 
 
@@ -184,6 +184,29 @@ def test_iter_c_or_f_order():
                 i = nditer(aview.swapaxes(0, 1), order='A')
                 assert_equal([x for x in i],
                                     aview.swapaxes(0, 1).ravel(order='A'))
+
+def test_nditer_multi_index_set():
+    # Test the multi_index set
+    a = np.arange(6).reshape(2, 3)
+    it = np.nditer(a, flags=['multi_index'])
+
+    # Removes the iteration on two first elements of a[0]
+    it.multi_index = (0, 2,)
+
+    assert_equal([i for i in it], [2, 3, 4, 5])
+    
+@pytest.mark.skipif(not HAS_REFCOUNT, reason="Python lacks refcounts")
+def test_nditer_multi_index_set_refcount():
+    # Test if the reference count on index variable is decreased
+    
+    index = 0
+    i = np.nditer(np.array([111, 222, 333, 444]), flags=['multi_index'])
+
+    start_count = sys.getrefcount(index)
+    i.multi_index = (index,)
+    end_count = sys.getrefcount(index)
+    
+    assert_equal(start_count, end_count)
 
 def test_iter_best_order_multi_index_1d():
     # The multi-indices should be correct with any reordering
@@ -2705,9 +2728,30 @@ def test_iter_writemasked_badinput():
                     op_dtypes=['f4', None],
                     casting='same_kind')
 
-def test_iter_writemasked():
-    a = np.zeros((3,), dtype='f8')
-    msk = np.array([True, True, False])
+def _is_buffered(iterator):
+    try:
+        iterator.itviews
+    except ValueError:
+        return True
+    return False
+
+@pytest.mark.parametrize("a",
+        [np.zeros((3,), dtype='f8'),
+         np.zeros((9876, 3*5), dtype='f8')[::2, :],
+         np.zeros((4, 312, 124, 3), dtype='f8')[::2, :, ::2, :],
+         # Also test with the last dimension strided (so it does not fit if
+         # there is repeated access)
+         np.zeros((9,), dtype='f8')[::3],
+         np.zeros((9876, 3*10), dtype='f8')[::2, ::5],
+         np.zeros((4, 312, 124, 3), dtype='f8')[::2, :, ::2, ::-1]])
+def test_iter_writemasked(a):
+    # Note, the slicing above is to ensure that nditer cannot combine multiple
+    # axes into one.  The repetition is just to make things a bit more
+    # interesting.
+    shape = a.shape
+    reps = shape[-1] // 3
+    msk = np.empty(shape, dtype=bool)
+    msk[...] = [True, True, False] * reps
 
     # When buffering is unused, 'writemasked' effectively does nothing.
     # It's up to the user of the iterator to obey the requested semantics.
@@ -2718,18 +2762,31 @@ def test_iter_writemasked():
         for x, m in it:
             x[...] = 1
     # Because we violated the semantics, all the values became 1
-    assert_equal(a, [1, 1, 1])
+    assert_equal(a, np.broadcast_to([1, 1, 1] * reps, shape))
 
     # Even if buffering is enabled, we still may be accessing the array
     # directly.
     it = np.nditer([a, msk], ['buffered'],
                 [['readwrite', 'writemasked'],
                  ['readonly', 'arraymask']])
+    # @seberg: I honestly don't currently understand why a "buffered" iterator
+    # would end up not using a buffer for the small array here at least when
+    # "writemasked" is used, that seems confusing...  Check by testing for
+    # actual memory overlap!
+    is_buffered = True
     with it:
         for x, m in it:
             x[...] = 2.5
-    # Because we violated the semantics, all the values became 2.5
-    assert_equal(a, [2.5, 2.5, 2.5])
+            if np.may_share_memory(x, a):
+                is_buffered = False
+
+    if not is_buffered:
+        # Because we violated the semantics, all the values became 2.5
+        assert_equal(a, np.broadcast_to([2.5, 2.5, 2.5] * reps, shape))
+    else:
+        # For large sizes, the iterator may be buffered:
+        assert_equal(a, np.broadcast_to([2.5, 2.5, 1] * reps, shape))
+        a[...] = 2.5
 
     # If buffering will definitely happening, for instance because of
     # a cast, only the items selected by the mask will be copied back from
@@ -2744,7 +2801,7 @@ def test_iter_writemasked():
             x[...] = 3
     # Even though we violated the semantics, only the selected values
     # were copied back
-    assert_equal(a, [3, 3, 2.5])
+    assert_equal(a, np.broadcast_to([3, 3, 2.5] * reps, shape))
 
 def test_iter_writemasked_decref():
     # force casting (to make it interesting) by using a structured dtype.
@@ -2762,7 +2819,7 @@ def test_iter_writemasked_decref():
     for buf, mask_buf in it:
         buf[...] = (3, singleton)
 
-    del buf, mask_buf, it   # delete everything to ensure corrrect cleanup
+    del buf, mask_buf, it   # delete everything to ensure correct cleanup
 
     if HAS_REFCOUNT:
         # The buffer would have included additional items, they must be
@@ -2890,6 +2947,25 @@ def test_object_iter_cleanup():
             raise TypeError("Ambiguous")
     assert_raises(TypeError, np.logical_or.reduce, 
                              np.array([T(), T()], dtype='O'))
+
+def test_object_iter_cleanup_reduce():
+    # Similar as above, but a complex reduction case that was previously
+    # missed (see gh-18810).
+    # The following array is special in that it cannot be flattened:
+    arr = np.array([[None, 1], [-1, -1], [None, 2], [-1, -1]])[::2]
+    with pytest.raises(TypeError):
+        np.sum(arr)
+
+@pytest.mark.parametrize("arr", [
+        np.ones((8000, 4, 2), dtype=object)[:, ::2, :],
+        np.ones((8000, 4, 2), dtype=object, order="F")[:, ::2, :],
+        np.ones((8000, 4, 2), dtype=object)[:, ::2, :].copy("F")])
+def test_object_iter_cleanup_large_reduce(arr):
+    # More complicated calls are possible for large arrays:
+    out = np.ones(8000, dtype=np.intp)
+    # force casting with `dtype=object`
+    res = np.sum(arr, axis=(1, 2), dtype=object, out=out)
+    assert_array_equal(res, np.full(8000, 4, dtype=object))
 
 def test_iter_too_large():
     # The total size of the iterator must not exceed the maximum intp due
@@ -3036,6 +3112,10 @@ def test_close_raises():
     assert_raises(StopIteration, next, it)
     assert_raises(ValueError, getattr, it, 'operands')
 
+def test_close_parameters():
+    it = np.nditer(np.arange(3))
+    assert_raises(TypeError, it.close, 1)
+
 @pytest.mark.skipif(not HAS_REFCOUNT, reason="Python lacks refcounts")
 def test_warn_noclose():
     a = np.arange(6, dtype='f4')
@@ -3048,6 +3128,8 @@ def test_warn_noclose():
         assert len(sup.log) == 1
 
 
+@pytest.mark.skipif(sys.version_info[:2] == (3, 9) and sys.platform == "win32",
+                    reason="Errors with Python 3.9 on Windows")
 @pytest.mark.skipif(not HAS_REFCOUNT, reason="Python lacks refcounts")
 @pytest.mark.parametrize(["in_dtype", "buf_dtype"],
         [("i", "O"), ("O", "i"),  # most simple cases
@@ -3068,6 +3150,8 @@ def test_partial_iteration_cleanup(in_dtype, buf_dtype, steps):
 
     # Note that resetting does not free references
     del it
+    break_cycles()
+    break_cycles()
     assert count == sys.getrefcount(value)
 
     # Repeat the test with `iternext`
@@ -3077,6 +3161,8 @@ def test_partial_iteration_cleanup(in_dtype, buf_dtype, steps):
         it.iternext()
 
     del it  # should ensure cleanup
+    break_cycles()
+    break_cycles()
     assert count == sys.getrefcount(value)
 
 
@@ -3122,7 +3208,7 @@ def test_debug_print(capfd):
     Currently uses a subprocess to avoid dealing with the C level `printf`s.
     """
     # the expected output with all addresses and sizes stripped (they vary
-    # and/or are platform dependend).
+    # and/or are platform dependent).
     expected = """
     ------ BEGIN ITERATOR DUMP ------
     | Iterator Address:

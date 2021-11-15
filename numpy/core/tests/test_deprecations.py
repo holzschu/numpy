@@ -314,21 +314,6 @@ class TestBinaryReprInsufficientWidthParameterForRepresentation(_DeprecationTest
         self.assert_deprecated(np.binary_repr, args=args, kwargs=kwargs)
 
 
-class TestNumericStyleTypecodes(_DeprecationTestCase):
-    """
-    Most numeric style typecodes were previously deprecated (and removed)
-    in 1.20. This also deprecates the remaining ones.
-    """
-    # 2020-06-09, NumPy 1.20
-    def test_all_dtypes(self):
-        deprecated_types = ['Bytes0', 'Datetime64', 'Str0']
-        # Depending on intp size, either Uint32 or Uint64 is defined:
-        deprecated_types.append(f"U{np.dtype(np.intp).name}")
-        for dt in deprecated_types:
-            self.assert_deprecated(np.dtype, exceptions=(TypeError,),
-                                   args=(dt,))
-
-
 class TestDTypeAttributeIsDTypeDeprecation(_DeprecationTestCase):
     # Deprecated 2021-01-05, NumPy 1.21
     message = r".*`.dtype` attribute"
@@ -698,6 +683,9 @@ class TestDeprecatedGlobals(_DeprecationTestCase):
         self.assert_deprecated(lambda: np.long(1))
         self.assert_deprecated(lambda: np.unicode('abc'))
 
+        # from np.core.numerictypes
+        self.assert_deprecated(lambda: np.typeDict)
+
 
 class TestMatrixInOuter(_DeprecationTestCase):
     # 2020-05-13 NumPy 1.20.0
@@ -803,7 +791,7 @@ class TestFutureWarningArrayLikeNotIterable(_DeprecationTestCase):
         *not* define the sequence protocol.
 
         NOTE: Tests for the versions including __len__ and __getitem__ exist
-              in `test_array_coercion.py` and they can be modified or ammended
+              in `test_array_coercion.py` and they can be modified or amended
               when this deprecation expired.
         """
         blueprint = np.arange(10)
@@ -903,7 +891,7 @@ else:
 class TestNoseDecoratorsDeprecated(_DeprecationTestCase):
     class DidntSkipException(Exception):
         pass
-    
+
     def test_slow(self):
         def _test_slow():
             @np.testing.dec.slow
@@ -1102,39 +1090,143 @@ class TestNoseDecoratorsDeprecated(_DeprecationTestCase):
         self.assert_deprecated(_test_parametrize)
 
 
-class TestStringPromotion(_DeprecationTestCase):
-    # Deprecated 2020-12-19, NumPy 1.21
+class TestSingleElementSignature(_DeprecationTestCase):
+    # Deprecated 2021-04-01, NumPy 1.21
+    message = r"The use of a length 1"
+
+    def test_deprecated(self):
+        self.assert_deprecated(lambda: np.add(1, 2, signature="d"))
+        self.assert_deprecated(lambda: np.add(1, 2, sig=(np.dtype("l"),)))
+
+
+class TestComparisonBadDType(_DeprecationTestCase):
+    # Deprecated 2021-04-01, NumPy 1.21
+    message = r"using `dtype=` in comparisons is only useful for"
+
+    def test_deprecated(self):
+        self.assert_deprecated(lambda: np.equal(1, 1, dtype=np.int64))
+        # Not an error only for the transition
+        self.assert_deprecated(lambda: np.equal(1, 1, sig=(None, None, "l")))
+
+    def test_not_deprecated(self):
+        np.equal(True, False, dtype=bool)
+        np.equal(3, 5, dtype=bool, casting="unsafe")
+        np.equal([None], [4], dtype=object)
+
+class TestComparisonBadObjectDType(_DeprecationTestCase):
+    # Deprecated 2021-04-01, NumPy 1.21  (different branch of the above one)
+    message = r"using `dtype=object` \(or equivalent signature\) will"
     warning_cls = FutureWarning
-    message = "Promotion of numbers and bools to strings is deprecated."
 
-    @pytest.mark.parametrize("dtype", "?bhilqpBHILQPefdgFDG")
-    @pytest.mark.parametrize("string_dt", ["S", "U"])
-    def test_deprecated(self, dtype, string_dt):
-        self.assert_deprecated(lambda: np.promote_types(dtype, string_dt))
+    def test_deprecated(self):
+        self.assert_deprecated(lambda: np.equal(1, 1, dtype=object))
+        self.assert_deprecated(
+                lambda: np.equal(1, 1, sig=(None, None, object)))
 
-        # concatenate has to be able to promote to find the result dtype:
-        arr1 = np.ones(3, dtype=dtype)
-        arr2 = np.ones(3, dtype=string_dt)
-        self.assert_deprecated(lambda: np.concatenate((arr1, arr2), axis=0))
-        self.assert_deprecated(lambda: np.concatenate((arr1, arr2), axis=None))
 
-        # coercing to an array is similar, but will fall-back to `object`
-        # (when raising the FutureWarning, this already happens)
-        self.assert_deprecated(lambda: np.array([arr1[0], arr2[0]]),
-                               exceptions=())
+class TestSpecialAttributeLookupFailure(_DeprecationTestCase):
+    message = r"An exception was ignored while fetching the attribute"
 
-    @pytest.mark.parametrize("dtype", "?bhilqpBHILQPefdgFDG")
-    @pytest.mark.parametrize("string_dt", ["S", "U"])
-    def test_not_deprecated(self, dtype, string_dt):
-        # The ufunc type resolvers run into this, but giving a futurewarning
-        # here is unnecessary (it ends up as an error anyway), so test that
-        # no warning is given:
-        arr1 = np.ones(3, dtype=dtype)
-        arr2 = np.ones(3, dtype=string_dt)
+    class WeirdArrayLike:
+        @property
+        def __array__(self):
+            raise RuntimeError("oops!")
 
-        # Adding two arrays uses result_type normally, which would fail:
-        with pytest.raises(TypeError):
-            self.assert_not_deprecated(lambda: arr1 + arr2)
-        # np.equal uses a different type resolver:
-        with pytest.raises(TypeError):
-            self.assert_not_deprecated(lambda: np.equal(arr1, arr2))
+    class WeirdArrayInterface:
+        @property
+        def __array_interface__(self):
+            raise RuntimeError("oops!")
+
+    def test_deprecated(self):
+        self.assert_deprecated(lambda: np.array(self.WeirdArrayLike()))
+        self.assert_deprecated(lambda: np.array(self.WeirdArrayInterface()))
+
+
+class TestCtypesGetter(_DeprecationTestCase):
+    # Deprecated 2021-05-18, Numpy 1.21.0
+    warning_cls = DeprecationWarning
+    ctypes = np.array([1]).ctypes
+
+    @pytest.mark.parametrize(
+        "name", ["get_data", "get_shape", "get_strides", "get_as_parameter"]
+    )
+    def test_deprecated(self, name: str) -> None:
+        func = getattr(self.ctypes, name)
+        self.assert_deprecated(lambda: func())
+
+    @pytest.mark.parametrize(
+        "name", ["data", "shape", "strides", "_as_parameter_"]
+    )
+    def test_not_deprecated(self, name: str) -> None:
+        self.assert_not_deprecated(lambda: getattr(self.ctypes, name))
+
+
+class TestUFuncForcedDTypeWarning(_DeprecationTestCase):
+    message = "The `dtype` and `signature` arguments to ufuncs only select the"
+
+    def test_not_deprecated(self):
+        import pickle
+        # does not warn (test relies on bad pickling behaviour, simply remove
+        # it if the `assert int64 is not int64_2` should start failing.
+        int64 = np.dtype("int64")
+        int64_2 = pickle.loads(pickle.dumps(int64))
+        assert int64 is not int64_2
+        self.assert_not_deprecated(lambda: np.add(3, 4, dtype=int64_2))
+
+    def test_deprecation(self):
+        int64 = np.dtype("int64")
+        self.assert_deprecated(lambda: np.add(3, 5, dtype=int64.newbyteorder()))
+        self.assert_deprecated(lambda: np.add(3, 5, dtype="m8[ns]"))
+
+    def test_behaviour(self):
+        int64 = np.dtype("int64")
+        arr = np.arange(10, dtype="m8[s]")
+
+        with pytest.warns(DeprecationWarning, match=self.message):
+            np.add(3, 5, dtype=int64.newbyteorder())
+        with pytest.warns(DeprecationWarning, match=self.message):
+            np.add(3, 5, dtype="m8[ns]")  # previously used the "ns"
+        with pytest.warns(DeprecationWarning, match=self.message):
+            np.add(arr, arr, dtype="m8[ns]")  # never preserved the "ns"
+        with pytest.warns(DeprecationWarning, match=self.message):
+            np.maximum(arr, arr, dtype="m8[ns]")  # previously used the "ns"
+        with pytest.warns(DeprecationWarning, match=self.message):
+            np.maximum.reduce(arr, dtype="m8[ns]")  # never preserved the "ns"
+
+
+PARTITION_DICT = {
+    "partition method": np.arange(10).partition,
+    "argpartition method": np.arange(10).argpartition,
+    "partition function": lambda kth: np.partition(np.arange(10), kth),
+    "argpartition function": lambda kth: np.argpartition(np.arange(10), kth),
+}
+
+
+@pytest.mark.parametrize("func", PARTITION_DICT.values(), ids=PARTITION_DICT)
+class TestPartitionBoolIndex(_DeprecationTestCase):
+    # Deprecated 2021-09-29, NumPy 1.22
+    warning_cls = DeprecationWarning
+    message = "Passing booleans as partition index is deprecated"
+
+    def test_deprecated(self, func):
+        self.assert_deprecated(lambda: func(True))
+        self.assert_deprecated(lambda: func([False, True]))
+
+    def test_not_deprecated(self, func):
+        self.assert_not_deprecated(lambda: func(1))
+        self.assert_not_deprecated(lambda: func([0, 1]))
+
+
+class TestMachAr(_DeprecationTestCase):
+    # Deprecated 2021-10-19, NumPy 1.22
+    warning_cls = DeprecationWarning
+
+    def test_deprecated(self):
+        self.assert_deprecated(lambda: np.MachAr)
+
+    def test_deprecated_module(self):
+        self.assert_deprecated(lambda: getattr(np.core, "machar"))
+
+    def test_deprecated_attr(self):
+        finfo = np.finfo(float)
+        self.assert_deprecated(lambda: getattr(finfo, "machar"))

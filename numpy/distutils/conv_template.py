@@ -271,7 +271,6 @@ def resolve_includes(source):
                 if not os.path.isabs(fn):
                     fn = os.path.join(d, fn)
                 if os.path.isfile(fn):
-                    print('Including file', fn)
                     lines.extend(resolve_includes(fn))
                 else:
                     lines.append(line)
@@ -285,7 +284,7 @@ def process_file(source):
     try:
         code = process_str(''.join(lines))
     except ValueError as e:
-        raise ValueError('In "%s" loop at %s' % (sourcefile, e))
+        raise ValueError('In "%s" loop at %s' % (sourcefile, e)) from None
     return '#line 1 "%s"\n%s' % (sourcefile, code)
 
 
@@ -322,7 +321,7 @@ def main():
     try:
         writestr = process_str(allstr)
     except ValueError as e:
-        raise ValueError("In %s loop at %s" % (file, e))
+        raise ValueError("In %s loop at %s" % (file, e)) from None
 
     outfile.write(writestr)
 

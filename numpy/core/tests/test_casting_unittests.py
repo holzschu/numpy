@@ -9,7 +9,6 @@ than integration tests.
 import pytest
 import textwrap
 import enum
-import itertools
 import random
 
 import numpy as np
@@ -17,7 +16,6 @@ from numpy.lib.stride_tricks import as_strided
 
 from numpy.testing import assert_array_equal
 from numpy.core._multiarray_umath import _get_castingimpl as get_castingimpl
-from numpy.core._multiarray_tests import uses_new_casts
 
 
 # Simple skips object, parametric and long double (unsupported by struct)
@@ -128,18 +126,14 @@ CAST_TABLE = _get_cancast_table()
 
 class TestChanges:
     """
-    These test cases excercise some behaviour changes
+    These test cases exercise some behaviour changes
     """
     @pytest.mark.parametrize("string", ["S", "U"])
     @pytest.mark.parametrize("floating", ["e", "f", "d", "g"])
     def test_float_to_string(self, floating, string):
         assert np.can_cast(floating, string)
         # 100 is long enough to hold any formatted floating
-        if uses_new_casts():
-            assert np.can_cast(floating, f"{string}100")
-        else:
-            assert not np.can_cast(floating, f"{string}100")
-            assert np.can_cast(floating, f"{string}100", casting="same_kind")
+        assert np.can_cast(floating, f"{string}100")
 
     def test_to_void(self):
         # But in general, we do consider these safe:
@@ -147,17 +141,14 @@ class TestChanges:
         assert np.can_cast("S20", "V")
 
         # Do not consider it a safe cast if the void is too smaller:
-        if uses_new_casts():
-            assert not np.can_cast("d", "V1")
-            assert not np.can_cast("S20", "V1")
-            assert not np.can_cast("U1", "V1")
-            # Structured to unstructured is just like any other:
-            assert np.can_cast("d,i", "V", casting="same_kind")
-        else:
-            assert np.can_cast("d", "V1")
-            assert np.can_cast("S20", "V1")
-            assert np.can_cast("U1", "V1")
-            assert not np.can_cast("d,i", "V", casting="same_kind")
+        assert not np.can_cast("d", "V1")
+        assert not np.can_cast("S20", "V1")
+        assert not np.can_cast("U1", "V1")
+        # Structured to unstructured is just like any other:
+        assert np.can_cast("d,i", "V", casting="same_kind")
+        # Unstructured void to unstructured is actually no cast at all:
+        assert np.can_cast("V3", "V", casting="no")
+        assert np.can_cast("V0", "V", casting="no")
 
 
 class TestCasting:
@@ -619,6 +610,28 @@ class TestCasting:
             elif change_length > 0:
                 assert safety == Casting.safe
 
+    @pytest.mark.parametrize("order1", [">", "<"])
+    @pytest.mark.parametrize("order2", [">", "<"])
+    def test_unicode_byteswapped_cast(self, order1, order2):
+        # Very specific tests (not using the castingimpl directly)
+        # that tests unicode bytedwaps including for unaligned array data.
+        dtype1 = np.dtype(f"{order1}U30")
+        dtype2 = np.dtype(f"{order2}U30")
+        data1 = np.empty(30 * 4 + 1, dtype=np.uint8)[1:].view(dtype1)
+        data2 = np.empty(30 * 4 + 1, dtype=np.uint8)[1:].view(dtype2)
+        if dtype1.alignment != 1:
+            # alignment should always be >1, but skip the check if not
+            assert not data1.flags.aligned
+            assert not data2.flags.aligned
+
+        element = "this is a ünicode string‽"
+        data1[()] = element
+        # Test both `data1` and `data1.copy()`  (which should be aligned)
+        for data in [data1, data1.copy()]:
+            data2[...] = data1
+            assert data2[()] == element
+            assert data2.copy()[()] == element
+
     def test_void_to_string_special_case(self):
         # Cover a small special case in void to string casting that could
         # probably just as well be turned into an error (compare
@@ -635,3 +648,64 @@ class TestCasting:
         with pytest.raises(TypeError,
                     match="casting from object to the parametric DType"):
             cast._resolve_descriptors((np.dtype("O"), None))
+
+    @pytest.mark.parametrize("dtype", simple_dtype_instances())
+    def test_object_and_simple_resolution(self, dtype):
+        # Simple test to exercise the cast when no instance is specified
+        object_dtype = type(np.dtype(object))
+        cast = get_castingimpl(object_dtype, type(dtype))
+
+        safety, (_, res_dt) = cast._resolve_descriptors((np.dtype("O"), dtype))
+        assert safety == Casting.unsafe
+        assert res_dt is dtype
+
+        safety, (_, res_dt) = cast._resolve_descriptors((np.dtype("O"), None))
+        assert safety == Casting.unsafe
+        assert res_dt == dtype.newbyteorder("=")
+
+    @pytest.mark.parametrize("dtype", simple_dtype_instances())
+    def test_simple_to_object_resolution(self, dtype):
+        # Simple test to exercise the cast when no instance is specified
+        object_dtype = type(np.dtype(object))
+        cast = get_castingimpl(type(dtype), object_dtype)
+
+        safety, (_, res_dt) = cast._resolve_descriptors((dtype, None))
+        assert safety == Casting.safe
+        assert res_dt is np.dtype("O")
+
+    @pytest.mark.parametrize("casting", ["no", "unsafe"])
+    def test_void_and_structured_with_subarray(self, casting):
+        # test case corresponding to gh-19325
+        dtype = np.dtype([("foo", "<f4", (3, 2))])
+        expected = casting == "unsafe"
+        assert np.can_cast("V4", dtype, casting=casting) == expected
+        assert np.can_cast(dtype, "V4", casting=casting) == expected
+
+    @pytest.mark.parametrize("dtype", np.typecodes["All"])
+    def test_object_casts_NULL_None_equivalence(self, dtype):
+        # None to <other> casts may succeed or fail, but a NULL'ed array must
+        # behave the same as one filled with None's.
+        arr_normal = np.array([None] * 5)
+        arr_NULLs = np.empty_like([None] * 5)
+        # If the check fails (maybe it should) the test would lose its purpose:
+        assert arr_NULLs.tobytes() == b"\x00" * arr_NULLs.nbytes
+
+        try:
+            expected = arr_normal.astype(dtype)
+        except TypeError:
+            with pytest.raises(TypeError):
+                arr_NULLs.astype(dtype),
+        else:
+            assert_array_equal(expected, arr_NULLs.astype(dtype))
+
+    @pytest.mark.parametrize("dtype",
+            np.typecodes["AllInteger"] + np.typecodes["AllFloat"])
+    def test_nonstandard_bool_to_other(self, dtype):
+        # simple test for casting bool_ to numeric types, which should not
+        # expose the detail that NumPy bools can sometimes take values other
+        # than 0 and 1.  See also gh-19514.
+        nonstandard_bools = np.array([0, 3, -7], dtype=np.int8).view(bool)
+        res = nonstandard_bools.astype(dtype)
+        expected = [0, 1, 1]
+        assert_array_equal(res, expected)
+
