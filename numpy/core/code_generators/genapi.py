@@ -31,6 +31,7 @@ API_FILES = [join('multiarray', 'alloc.c'),
              join('multiarray', 'arraytypes.c.src'),
              join('multiarray', 'buffer.c'),
              join('multiarray', 'calculation.c'),
+             join('multiarray', 'common_dtype.c'),
              join('multiarray', 'conversion_utils.c'),
              join('multiarray', 'convert.c'),
              join('multiarray', 'convert_datatype.c'),
@@ -40,6 +41,7 @@ API_FILES = [join('multiarray', 'alloc.c'),
              join('multiarray', 'datetime_busdaycal.c'),
              join('multiarray', 'datetime_strings.c'),
              join('multiarray', 'descriptor.c'),
+             join('multiarray', 'dlpack.c'),
              join('multiarray', 'dtypemeta.c'),
              join('multiarray', 'einsum.c.src'),
              join('multiarray', 'flagsobject.c'),
@@ -281,9 +283,11 @@ def find_functions(filename, tag='API'):
                     state = SCANNING
                 else:
                     function_args.append(line)
-        except Exception:
-            print(filename, lineno + 1)
+        except ParseError:
             raise
+        except Exception as e:
+            msg = "see chained exception for details"
+            raise ParseError(filename, lineno + 1, msg) from e
     fo.close()
     return functions
 

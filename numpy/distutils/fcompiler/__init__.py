@@ -610,7 +610,7 @@ class FCompiler(CCompiler):
             self.spawn(command, display=display)
         except DistutilsExecError as e:
             msg = str(e)
-            raise CompileError(msg)
+            raise CompileError(msg) from None
 
     def module_options(self, module_dirs, module_build_dir):
         options = []
@@ -678,7 +678,7 @@ class FCompiler(CCompiler):
                 self.spawn(command)
             except DistutilsExecError as e:
                 msg = str(e)
-                raise LinkError(msg)
+                raise LinkError(msg) from None
         else:
             log.debug("skipping %s (up-to-date)", output_filename)
 
@@ -745,7 +745,8 @@ _default_compilers = (
     ('cygwin.*', ('gnu', 'intelv', 'absoft', 'compaqv', 'intelev', 'gnu95', 'g95')),
     ('linux.*', ('gnu95', 'intel', 'lahey', 'pg', 'nv', 'absoft', 'nag', 'vast', 'compaq',
                  'intele', 'intelem', 'gnu', 'g95', 'pathf95', 'nagfor', 'fujitsu')),
-    ('darwin.*', ('gnu95', 'nag', 'absoft', 'ibm', 'intel', 'gnu', 'g95', 'pg')),
+    ('darwin.*', ('gnu95', 'nag', 'nagfor', 'absoft', 'ibm', 'intel', 'gnu',
+                 'g95', 'pg')),
     ('sunos.*', ('sun', 'gnu', 'gnu95', 'g95')),
     ('irix.*', ('mips', 'gnu', 'gnu95',)),
     ('aix.*', ('ibm', 'gnu', 'gnu95',)),

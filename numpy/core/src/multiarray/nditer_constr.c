@@ -11,10 +11,10 @@
  */
 #define NPY_NO_DEPRECATED_API NPY_API_VERSION
 
-/* Indicate that this .c file is allowed to include the header */
+/* Allow this .c file to include nditer_impl.h */
 #define NPY_ITERATOR_IMPLEMENTATION_CODE
-#include "nditer_impl.h"
 
+#include "nditer_impl.h"
 #include "arrayobject.h"
 #include "array_coercion.h"
 #include "templ_common.h"
@@ -449,6 +449,11 @@ NpyIter_AdvancedNew(int nop, PyArrayObject **op_in, npy_uint32 flags,
     /*
      * If REFS_OK was specified, check whether there are any
      * reference arrays and flag it if so.
+     *
+     * NOTE: This really should be unnecessary, but chances are someone relies
+     *       on it.  The iterator itself does not require the API here
+     *       as it only does so for casting/buffering.  But in almost all
+     *       use-cases the API will be required for whatever operation is done.
      */
     if (flags & NPY_ITER_REFS_OK) {
         for (iop = 0; iop < nop; ++iop) {
@@ -594,30 +599,33 @@ NpyIter_Copy(NpyIter *iter)
                     if (buffers[iop] == NULL) {
                         out_of_memory = 1;
                     }
+                    else {
+                        if (PyDataType_FLAGCHK(dtypes[iop], NPY_NEEDS_INIT)) {
+                            memset(buffers[iop], '\0', itemsize*buffersize);
+                        }
+                    }
                 }
             }
 
-            if (transferinfo[iop].read.auxdata != NULL) {
+            if (transferinfo[iop].read.func != NULL) {
                 if (out_of_memory) {
-                    transferinfo[iop].read.auxdata = NULL;
+                    transferinfo[iop].read.func = NULL;  /* No cleanup */
                 }
                 else {
-                    transferinfo[iop].read.auxdata =
-                          NPY_AUXDATA_CLONE(transferinfo[iop].read.auxdata);
-                    if (transferinfo[iop].read.auxdata == NULL) {
+                    if (NPY_cast_info_copy(&transferinfo[iop].read,
+                                           &transferinfo[iop].read) < 0) {
                         out_of_memory = 1;
                     }
                 }
             }
 
-            if (transferinfo[iop].write.auxdata != NULL) {
+            if (transferinfo[iop].write.func != NULL) {
                 if (out_of_memory) {
-                    transferinfo[iop].write.auxdata = NULL;
+                    transferinfo[iop].write.func = NULL;  /* No cleanup */
                 }
                 else {
-                    transferinfo[iop].write.auxdata =
-                          NPY_AUXDATA_CLONE(transferinfo[iop].write.auxdata);
-                    if (transferinfo[iop].write.auxdata == NULL) {
+                    if (NPY_cast_info_copy(&transferinfo[iop].write,
+                                           &transferinfo[iop].write) < 0) {
                         out_of_memory = 1;
                     }
                 }
@@ -696,12 +704,8 @@ NpyIter_Deallocate(NpyIter *iter)
         NpyIter_TransferInfo *transferinfo = NBF_TRANSFERINFO(bufferdata);
         /* read bufferdata */
         for (iop = 0; iop < nop; ++iop, ++transferinfo) {
-            if (transferinfo->read.auxdata) {
-                NPY_AUXDATA_FREE(transferinfo->read.auxdata);
-            }
-            if (transferinfo->write.auxdata) {
-                NPY_AUXDATA_FREE(transferinfo->write.auxdata);
-            }
+            NPY_cast_info_xfree(&transferinfo->read);
+            NPY_cast_info_xfree(&transferinfo->write);
         }
     }
 
@@ -1401,7 +1405,7 @@ check_mask_for_writemasked_reduction(NpyIter *iter, int iop)
 /*
  * Check whether a reduction is OK based on the flags and the operand being
  * readwrite. This path is deprecated, since usually only specific axes
- * should be reduced. If axes are specified explicitely, the flag is
+ * should be reduced. If axes are specified explicitly, the flag is
  * unnecessary.
  */
 static int
@@ -3163,8 +3167,7 @@ npyiter_allocate_transfer_functions(NpyIter *iter)
                                         PyArray_DESCR(op[iop]),
                                         op_dtype[iop],
                                         move_references,
-                                        &transferinfo[iop].read.func,
-                                        &transferinfo[iop].read.auxdata,
+                                        &transferinfo[iop].read,
                                         &needs_api) != NPY_SUCCEED) {
                     iop -= 1;  /* This one cannot be cleaned up yet. */
                     goto fail;
@@ -3196,8 +3199,7 @@ npyiter_allocate_transfer_functions(NpyIter *iter)
                             PyArray_DESCR(op[iop]),
                             mask_dtype,
                             move_references,
-                            (PyArray_MaskedStridedUnaryOp **)&transferinfo[iop].write.func,
-                            &transferinfo[iop].write.auxdata,
+                            &transferinfo[iop].write,
                             &needs_api) != NPY_SUCCEED) {
                         goto fail;
                     }
@@ -3210,8 +3212,7 @@ npyiter_allocate_transfer_functions(NpyIter *iter)
                             op_dtype[iop],
                             PyArray_DESCR(op[iop]),
                             move_references,
-                            &transferinfo[iop].write.func,
-                            &transferinfo[iop].write.auxdata,
+                            &transferinfo[iop].write,
                             &needs_api) != NPY_SUCCEED) {
                         goto fail;
                     }
@@ -3229,8 +3230,7 @@ npyiter_allocate_transfer_functions(NpyIter *iter)
                         op_dtype[iop]->elsize, 0,
                         op_dtype[iop], NULL,
                         1,
-                        &transferinfo[iop].write.func,
-                        &transferinfo[iop].write.auxdata,
+                        &transferinfo[iop].write,
                         &needs_api) != NPY_SUCCEED) {
                     goto fail;
                 }
@@ -3254,14 +3254,8 @@ npyiter_allocate_transfer_functions(NpyIter *iter)
 
 fail:
     for (i = 0; i < iop+1; ++i) {
-        if (transferinfo[iop].read.auxdata != NULL) {
-            NPY_AUXDATA_FREE(transferinfo[iop].read.auxdata);
-            transferinfo[iop].read.auxdata = NULL;
-        }
-        if (transferinfo[iop].write.auxdata != NULL) {
-            NPY_AUXDATA_FREE(transferinfo[iop].write.auxdata);
-            transferinfo[iop].write.auxdata = NULL;
-        }
+        NPY_cast_info_xfree(&transferinfo[iop].read);
+        NPY_cast_info_xfree(&transferinfo[iop].write);
     }
     return 0;
 }
