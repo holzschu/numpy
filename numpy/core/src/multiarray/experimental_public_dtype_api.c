@@ -361,6 +361,7 @@ PyUFunc_AddPromoter(
 NPY_NO_EXPORT PyObject *
 _get_experimental_dtype_api(PyObject *NPY_UNUSED(mod), PyObject *arg)
 {
+#if !TARGET_OS_IPHONE
     static void *experimental_api_table[] = {
             &PyUFunc_AddLoopFromSpec,
             &PyUFunc_AddPromoter,
@@ -370,6 +371,17 @@ _get_experimental_dtype_api(PyObject *NPY_UNUSED(mod), PyObject *arg)
             &PyArray_PromoteDTypeSequence,
             NULL,
     };
+#else 
+    static __thread void *experimental_api_table[] = {
+            &PyUFunc_AddLoopFromSpec,
+            &PyUFunc_AddPromoter,
+            &PyArrayDTypeMeta_Type,
+            &PyArrayInitDTypeMeta_FromSpec,
+            &PyArray_CommonDType,
+            &PyArray_PromoteDTypeSequence,
+            NULL,
+    };
+#endif
 
     char *env = getenv("NUMPY_EXPERIMENTAL_DTYPE_API");
     if (env == NULL || strcmp(env, "1") != 0) {

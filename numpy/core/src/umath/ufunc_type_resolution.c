@@ -115,8 +115,6 @@ raise_no_loop_found_error(
 #else
     static __thread PyObject *exc_type = NULL;
 #endif
-    PyObject *exc_value;
-    PyObject *dtypes_tup;
     npy_intp i;
 
     npy_cache_import(

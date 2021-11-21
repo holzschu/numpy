@@ -106,7 +106,11 @@ initialize_normal_kwds(PyObject *out_args,
             }
         }
     }
+#if !TARGET_OS_IPHONE
     static PyObject *out_str = NULL;
+#else
+    static __thread PyObject *out_str = NULL;
+#endif
     if (out_str == NULL) {
         out_str = PyUnicode_InternFromString("out");
         if (out_str == NULL) {
@@ -179,7 +183,11 @@ copy_positional_args_to_kwargs(const char **keywords,
              * This is only relevant for reduce, which is the only one with
              * 5 keyword arguments.
              */
+#if !TARGET_OS_IPHONE
             static PyObject *NoValue = NULL;
+#else
+            static __thread PyObject *NoValue = NULL;
+#endif
             assert(strcmp(keywords[i], "initial") == 0);
             npy_cache_import("numpy", "_NoValue", &NoValue);
             if (args[i] == NoValue) {

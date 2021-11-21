@@ -37,7 +37,12 @@ typedef struct {
  * The sole purpose of this macro is to hide the argument parsing cache.
  * Since this cache must be static, this also removes a source of error.
  */
+#if !TARGET_OS_IPHONE
 #define NPY_PREPARE_ARGPARSER static _NpyArgParserCache __argparse_cache = {-1}
+#else
+// iOS change: static variables must be thread local, or else we have issues.
+#define NPY_PREPARE_ARGPARSER static __thread _NpyArgParserCache __argparse_cache = {-1}
+#endif
 
 /**
  * Macro to help with argument parsing.

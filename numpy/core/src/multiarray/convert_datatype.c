@@ -2441,7 +2441,11 @@ complex_to_noncomplex_get_loop(
         PyArrayMethod_StridedLoop **out_loop, NpyAuxData **out_transferdata,
         NPY_ARRAYMETHOD_FLAGS *flags)
 {
+#if !TARGET_OS_IPHONE
     static PyObject *cls = NULL;
+#else
+    static __thread PyObject *cls = NULL;
+#endif
     int ret;
     npy_cache_import("numpy.core", "ComplexWarning", &cls);
     if (cls == NULL) {
@@ -3039,7 +3043,11 @@ nonstructured_to_structured_get_loop(
 static PyObject *
 PyArray_GetGenericToVoidCastingImpl(void)
 {
+#if !TARGET_OS_IPHONE
     static PyArrayMethodObject *method = NULL;
+#else
+    static __thread PyArrayMethodObject *method = NULL;
+#endif
 
     if (method != NULL) {
         Py_INCREF(method);
@@ -3178,7 +3186,11 @@ structured_to_nonstructured_get_loop(
 static PyObject *
 PyArray_GetVoidToGenericCastingImpl(void)
 {
+#if !TARGET_OS_IPHONE
     static PyArrayMethodObject *method = NULL;
+#else
+    static __thread PyArrayMethodObject *method = NULL;
+#endif
 
     if (method != NULL) {
         Py_INCREF(method);
@@ -3490,7 +3502,11 @@ object_to_any_resolve_descriptors(
 static PyObject *
 PyArray_GetObjectToGenericCastingImpl(void)
 {
+#if !TARGET_OS_IPHONE
     static PyArrayMethodObject *method = NULL;
+#else
+    static __thread PyArrayMethodObject *method = NULL;
+#endif
 
     if (method != NULL) {
         Py_INCREF(method);
@@ -3546,7 +3562,11 @@ any_to_object_resolve_descriptors(
 static PyObject *
 PyArray_GetGenericToObjectCastingImpl(void)
 {
+#if !TARGET_OS_IPHONE
     static PyArrayMethodObject *method = NULL;
+#else
+    static __thread PyArrayMethodObject *method = NULL;
+#endif
 
     if (method != NULL) {
         Py_INCREF(method);

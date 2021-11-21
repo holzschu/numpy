@@ -3828,7 +3828,11 @@ _set_full_args_out(int nout, PyObject *out_obj, ufunc_full_args *full_args)
 static int
 _not_NoValue(PyObject *obj, PyObject **out)
 {
+#if !TARGET_OS_IPHONE
     static PyObject *NoValue = NULL;
+#else
+    static __thread PyObject *NoValue = NULL;
+#endif
     npy_cache_import("numpy", "_NoValue", &NoValue);
     if (NoValue == NULL) {
         return 0;
@@ -5684,7 +5688,11 @@ prepare_input_arguments_for_outer(PyObject *args, PyUFuncObject *ufunc)
 {
     PyArrayObject *ap1 = NULL;
     PyObject *tmp;
+#if !TARGET_OS_IPHONE
     static PyObject *_numpy_matrix;
+#else 
+    static __thread PyObject *_numpy_matrix;
+#endif
     npy_cache_import("numpy", "matrix", &_numpy_matrix);
 
     const char *matrix_deprecation_msg = (
@@ -6415,7 +6423,7 @@ NPY_NO_EXPORT void reset_PyUFunc_Type(void)
     PyUFunc_Type.tp_basicsize  = sizeof(PyUFuncObject);
     PyUFunc_Type.tp_itemsize  = 0;
     PyUFunc_Type.tp_dealloc  = (destructor)ufunc_dealloc;
-    PyArray_Type.tp_vectorcall_offset = 0; 
+    PyArray_Type.tp_vectorcall_offset = offsetof(PyUFuncObject, vectorcall); 
     PyUFunc_Type.tp_getattr  = 0;
     PyUFunc_Type.tp_setattr  = 0;
     PyArray_Type.tp_as_async = 0; 
@@ -6424,12 +6432,14 @@ NPY_NO_EXPORT void reset_PyUFunc_Type(void)
     PyUFunc_Type.tp_as_sequence  = 0;
     PyUFunc_Type.tp_as_mapping  = 0;
     PyUFunc_Type.tp_hash  = 0;
-    PyUFunc_Type.tp_call  = (ternaryfunc)ufunc_generic_call;
+    PyUFunc_Type.tp_call  = &PyVectorcall_Call;
     PyUFunc_Type.tp_str  = (reprfunc)ufunc_repr;
     PyUFunc_Type.tp_getattro  = 0;
     PyUFunc_Type.tp_setattro  = 0;
     PyUFunc_Type.tp_as_buffer  = 0;
-    PyUFunc_Type.tp_flags  = Py_TPFLAGS_DEFAULT | Py_TPFLAGS_HAVE_GC;
+    PyUFunc_Type.tp_flags  = Py_TPFLAGS_DEFAULT |
+        _Py_TPFLAGS_HAVE_VECTORCALL |
+        Py_TPFLAGS_HAVE_GC;
     PyUFunc_Type.tp_doc  = 0;
     PyUFunc_Type.tp_traverse  = (traverseproc)ufunc_traverse;
     PyUFunc_Type.tp_clear  = 0;

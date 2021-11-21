@@ -591,8 +591,7 @@ dtypemeta_wrap_legacy_descriptor(PyArray_Descr *descr)
             .tp_base = &PyArrayDescr_Type,
             .tp_new = (newfunc)legacy_dtype_default_new,
         },},
-        .legacy = 1,
-        .abstract = 0, /* this is a concrete DType */
+        .flags = NPY_DT_LEGACY,
         /* Further fields are not common between DTypes */
     };
 #endif

@@ -1732,6 +1732,21 @@ array_iter(PyArrayObject *arr)
 }
 
 
+array_alloc(PyTypeObject *type, Py_ssize_t NPY_UNUSED(nitems))
+{
+    /* nitems will always be 0 */
+    PyObject *obj = PyObject_Malloc(type->tp_basicsize);
+    PyObject_Init(obj, type);
+    return obj;
+}
+
+static void
+array_free(PyObject * v)
+{
+    /* avoid same deallocator as PyBaseObject, see gentype_free */
+    PyObject_Free(v);
+}
+
 NPY_NO_EXPORT PyTypeObject PyArray_Type = {
     PyVarObject_HEAD_INIT(NULL, 0)
     .tp_name = "numpy.ndarray",
@@ -1792,9 +1807,7 @@ NPY_NO_EXPORT void reset_PyArray_Type(void)
     PyArray_Type.tp_descr_set  = 0;
     PyArray_Type.tp_dictoffset  = 0;
     PyArray_Type.tp_init  = (initproc)0;
-    PyArray_Type.tp_alloc  = (allocfunc)array_alloc;
     PyArray_Type.tp_new  = (newfunc)array_new;
-    PyArray_Type.tp_free  = (freefunc)array_free;
     PyArray_Type.tp_is_gc  = 0;
     PyArray_Type.tp_bases  = 0;
     PyArray_Type.tp_mro  = 0;

@@ -202,7 +202,11 @@ static PyObject *
 sfloat_new(PyTypeObject *NPY_UNUSED(cls), PyObject *args, PyObject *kwds)
 {
     double scaling = 1.;
+#if !TARGET_OS_IPHONE
     static char *kwargs_strs[] = {"scaling", NULL};
+#else 
+    static __thread char *kwargs_strs[] = {"scaling", NULL};
+#endif
 
     if (!PyArg_ParseTupleAndKeywords(
             args, kwds, "|d:_ScaledFloatTestDType", kwargs_strs, &scaling)) {
@@ -785,7 +789,11 @@ NPY_NO_EXPORT PyObject *
 get_sfloat_dtype(PyObject *NPY_UNUSED(mod), PyObject *NPY_UNUSED(args))
 {
     /* Allow calling the function multiple times. */
+#if !TARGET_OS_IPHONE
     static npy_bool initialized = NPY_FALSE;
+#else
+    static __thread npy_bool initialized = NPY_FALSE;
+#endif
 
     if (initialized) {
         Py_INCREF(&PyArray_SFloatDType);
