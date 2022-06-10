@@ -1,12 +1,12 @@
 import io
-from typing import Any, List
+from typing import Any
 
 import numpy as np
 import numpy.typing as npt
 
 AR_i8: npt.NDArray[np.int64]
 REC_AR_V: np.recarray[Any, np.dtype[np.record]]
-AR_LIST: List[npt.NDArray[np.int64]]
+AR_LIST: list[npt.NDArray[np.int64]]
 
 format_parser: np.format_parser
 record: np.record
@@ -33,6 +33,7 @@ reveal_type(REC_AR_V.field(0, AR_i8))  # E: None
 reveal_type(REC_AR_V.field("field_a", AR_i8))  # E: None
 reveal_type(REC_AR_V["field_a"])  # E: Any
 reveal_type(REC_AR_V.field_a)  # E: Any
+reveal_type(REC_AR_V.__array_finalize__(object()))  # E: None
 
 reveal_type(np.recarray(  # recarray[Any, dtype[record]]
     shape=(10, 5),
@@ -103,4 +104,25 @@ reveal_type(np.rec.array(  # recarray[Any, dtype[record]]
     [(1, 1.5)],
     formats=[np.int64, np.float64],
     names=["i8", "f8"]
+))
+
+reveal_type(np.rec.array(  # recarray[Any, dtype[Any]]
+    None,
+    dtype=np.float64,
+    shape=(10, 3),
+))
+reveal_type(np.rec.array(  # recarray[Any, dtype[Any]]
+    None,
+    formats=[np.int64, np.float64],
+    names=["i8", "f8"],
+    shape=(10, 3),
+))
+reveal_type(np.rec.array(  # recarray[Any, dtype[Any]]
+    file_obj,
+    dtype=np.float64,
+))
+reveal_type(np.rec.array(  # recarray[Any, dtype[Any]]
+    file_obj,
+    formats=[np.int64, np.float64],
+    names=["i8", "f8"],
 ))

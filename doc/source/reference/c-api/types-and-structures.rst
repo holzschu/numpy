@@ -144,9 +144,8 @@ PyArray_Type and PyArrayObject
 
        - If this array does not own its own memory, then base points to the
          Python object that owns it (perhaps another array object)
-       - If this array has the (deprecated) :c:data:`NPY_ARRAY_UPDATEIFCOPY` or
-         :c:data:`NPY_ARRAY_WRITEBACKIFCOPY` flag set, then this array is a working
-         copy of a "misbehaved" array.
+       - If this array has the :c:data:`NPY_ARRAY_WRITEBACKIFCOPY` flag set,
+         then this array is a working copy of a "misbehaved" array.
 
        When ``PyArray_ResolveWritebackIfCopy`` is called, the array pointed to
        by base will be updated with the contents of this array.
@@ -169,7 +168,7 @@ PyArray_Type and PyArrayObject
        interpreted. Possible flags are :c:data:`NPY_ARRAY_C_CONTIGUOUS`,
        :c:data:`NPY_ARRAY_F_CONTIGUOUS`, :c:data:`NPY_ARRAY_OWNDATA`,
        :c:data:`NPY_ARRAY_ALIGNED`, :c:data:`NPY_ARRAY_WRITEABLE`,
-       :c:data:`NPY_ARRAY_WRITEBACKIFCOPY`, and :c:data:`NPY_ARRAY_UPDATEIFCOPY`.
+       :c:data:`NPY_ARRAY_WRITEBACKIFCOPY`.
 
    .. c:member:: PyObject *weakreflist
 
@@ -285,6 +284,11 @@ PyArrayDescr_Type and PyArray_Descr
        A data-type bit-flag that determines if the data-type exhibits object-
        array like behavior. Each bit in this member is a flag which are named
        as:
+
+   .. c:member:: int alignment
+
+       Non-NULL if this type is an array (C-contiguous) of some other type
+
 
 ..
   dedented to allow internal linking, pending a refactoring

@@ -135,7 +135,7 @@ def scalar_instances(times=True, extended_precision=True, user_dtype=True):
 
 
 def is_parametric_dtype(dtype):
-    """Returns True if the the dtype is a parametric legacy dtype (itemsize
+    """Returns True if the dtype is a parametric legacy dtype (itemsize
     is 0, or a datetime without units)
     """
     if dtype.itemsize == 0:
@@ -746,3 +746,22 @@ class TestArrayLikes:
         with pytest.raises(error):
             np.array(BadSequence())
 
+
+class TestSpecialAttributeLookupFailure:
+    # An exception was raised while fetching the attribute
+
+    class WeirdArrayLike:
+        @property
+        def __array__(self):
+            raise RuntimeError("oops!")
+
+    class WeirdArrayInterface:
+        @property
+        def __array_interface__(self):
+            raise RuntimeError("oops!")
+
+    def test_deprecated(self):
+        with pytest.raises(RuntimeError):
+            np.array(self.WeirdArrayLike())
+        with pytest.raises(RuntimeError):
+            np.array(self.WeirdArrayInterface())

@@ -87,7 +87,7 @@ enum NPY_TYPES {    NPY_BOOL=0,
                     /* The number of types not including the new 1.6 types */
                     NPY_NTYPES_ABI_COMPATIBLE=21
 };
-#ifdef _MSC_VER
+#if defined(_MSC_VER) && !defined(__clang__)
 #pragma deprecated(NPY_CHAR)
 #endif
 
@@ -221,13 +221,6 @@ typedef enum {
         NPY_SAME_KIND_CASTING=3,
         /* Allow any casts */
         NPY_UNSAFE_CASTING=4,
-        /*
-         * Flag to allow signalling that a cast is a view, this flag is not
-         * valid when requesting a cast of specific safety.
-         * _NPY_CAST_IS_VIEW|NPY_EQUIV_CASTING means the same as NPY_NO_CASTING.
-         */
-        // TODO-DTYPES: Needs to be documented.
-        _NPY_CAST_IS_VIEW = 1 << 16,
 } NPY_CASTING;
 
 typedef enum {
@@ -841,11 +834,9 @@ typedef int (PyArray_FinalizeFunc)(PyArrayObject *, PyObject *);
  * 1-d array is C_CONTIGUOUS it is also F_CONTIGUOUS. Arrays with
  * more then one dimension can be C_CONTIGUOUS and F_CONTIGUOUS
  * at the same time if they have either zero or one element.
- * If NPY_RELAXED_STRIDES_CHECKING is set, a higher dimensional
- * array is always C_CONTIGUOUS and F_CONTIGUOUS if it has zero elements
- * and the array is contiguous if ndarray.squeeze() is contiguous.
- * I.e. dimensions for which `ndarray.shape[dimension] == 1` are
- * ignored.
+ * A higher dimensional array always has the same contiguity flags as
+ * `array.squeeze()`; dimensions with `array.shape[dimension] == 1` are
+ * effectively ignored when checking for contiguity.
  */
 
 /*
@@ -868,7 +859,7 @@ typedef int (PyArray_FinalizeFunc)(PyArrayObject *, PyObject *);
 
 /*
  * Always copy the array. Returned arrays are always CONTIGUOUS,
- * ALIGNED, and WRITEABLE.
+ * ALIGNED, and WRITEABLE. See also: NPY_ARRAY_ENSURENOCOPY = 0x4000.
  *
  * This flag may be requested in constructor functions.
  */
@@ -934,8 +925,14 @@ typedef int (PyArray_FinalizeFunc)(PyArrayObject *, PyObject *);
  * This flag may be requested in constructor functions.
  * This flag may be tested for in PyArray_FLAGS(arr).
  */
-#define NPY_ARRAY_UPDATEIFCOPY    0x1000 /* Deprecated in 1.14 */
 #define NPY_ARRAY_WRITEBACKIFCOPY 0x2000
+
+/*
+ * No copy may be made while converting from an object/array (result is a view)
+ *
+ * This flag may be requested in constructor functions.
+ */
+#define NPY_ARRAY_ENSURENOCOPY 0x4000
 
 /*
  * NOTE: there are also internal flags defined in multiarray/arrayobject.h,
@@ -958,14 +955,12 @@ typedef int (PyArray_FinalizeFunc)(PyArrayObject *, PyObject *);
 #define NPY_ARRAY_DEFAULT      (NPY_ARRAY_CARRAY)
 #define NPY_ARRAY_IN_ARRAY     (NPY_ARRAY_CARRAY_RO)
 #define NPY_ARRAY_OUT_ARRAY    (NPY_ARRAY_CARRAY)
-#define NPY_ARRAY_INOUT_ARRAY  (NPY_ARRAY_CARRAY | \
-                                NPY_ARRAY_UPDATEIFCOPY)
+#define NPY_ARRAY_INOUT_ARRAY  (NPY_ARRAY_CARRAY)
 #define NPY_ARRAY_INOUT_ARRAY2 (NPY_ARRAY_CARRAY | \
                                 NPY_ARRAY_WRITEBACKIFCOPY)
 #define NPY_ARRAY_IN_FARRAY    (NPY_ARRAY_FARRAY_RO)
 #define NPY_ARRAY_OUT_FARRAY   (NPY_ARRAY_FARRAY)
-#define NPY_ARRAY_INOUT_FARRAY (NPY_ARRAY_FARRAY | \
-                                NPY_ARRAY_UPDATEIFCOPY)
+#define NPY_ARRAY_INOUT_FARRAY (NPY_ARRAY_FARRAY)
 #define NPY_ARRAY_INOUT_FARRAY2 (NPY_ARRAY_FARRAY | \
                                 NPY_ARRAY_WRITEBACKIFCOPY)
 

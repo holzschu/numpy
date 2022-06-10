@@ -405,7 +405,7 @@ def _recursive_set_fill_value(fillvalue, dt):
 
     Returns
     -------
-    val: tuple
+    val : tuple
         A tuple of values corresponding to the structured fill value.
 
     """
@@ -2837,6 +2837,12 @@ class MaskedArray(ndarray):
             _data = ndarray.view(_data, type(data))
         else:
             _data = ndarray.view(_data, cls)
+
+        # Handle the case where data is not a subclass of ndarray, but
+        # still has the _mask attribute like MaskedArrays
+        if hasattr(data, '_mask') and not isinstance(data, ndarray):
+            _data._mask = data._mask
+            # FIXME: should we set `_data._sharedmask = True`?
         # Process mask.
         # Type of the mask
         mdtype = make_mask_descr(_data.dtype)
@@ -3536,15 +3542,17 @@ class MaskedArray(ndarray):
 
     def harden_mask(self):
         """
-        Force the mask to hard.
+        Force the mask to hard, preventing unmasking by assignment.
 
         Whether the mask of a masked array is hard or soft is determined by
         its `~ma.MaskedArray.hardmask` property. `harden_mask` sets
-        `~ma.MaskedArray.hardmask` to ``True``.
+        `~ma.MaskedArray.hardmask` to ``True`` (and returns the modified
+        self).
 
         See Also
         --------
         ma.MaskedArray.hardmask
+        ma.MaskedArray.soften_mask
 
         """
         self._hardmask = True
@@ -3552,15 +3560,17 @@ class MaskedArray(ndarray):
 
     def soften_mask(self):
         """
-        Force the mask to soft.
+        Force the mask to soft (default), allowing unmasking by assignment.
 
         Whether the mask of a masked array is hard or soft is determined by
         its `~ma.MaskedArray.hardmask` property. `soften_mask` sets
-        `~ma.MaskedArray.hardmask` to ``False``.
+        `~ma.MaskedArray.hardmask` to ``False`` (and returns the modified
+        self).
 
         See Also
         --------
         ma.MaskedArray.hardmask
+        ma.MaskedArray.harden_mask
 
         """
         self._hardmask = False
@@ -3568,16 +3578,55 @@ class MaskedArray(ndarray):
 
     @property
     def hardmask(self):
-        """ Hardness of the mask """
+        """
+        Specifies whether values can be unmasked through assignments.
+
+        By default, assigning definite values to masked array entries will
+        unmask them.  When `hardmask` is ``True``, the mask will not change
+        through assignments.
+
+        See Also
+        --------
+        ma.MaskedArray.harden_mask
+        ma.MaskedArray.soften_mask
+
+        Examples
+        --------
+        >>> x = np.arange(10)
+        >>> m = np.ma.masked_array(x, x>5)
+        >>> assert not m.hardmask
+
+        Since `m` has a soft mask, assigning an element value unmasks that
+        element:
+
+        >>> m[8] = 42
+        >>> m
+        masked_array(data=[0, 1, 2, 3, 4, 5, --, --, 42, --],
+                     mask=[False, False, False, False, False, False,
+                           True, True, False, True],
+               fill_value=999999)
+
+        After hardening, the mask is not affected by assignments:
+
+        >>> hardened = np.ma.harden_mask(m)
+        >>> assert m.hardmask and hardened is m
+        >>> m[:] = 23
+        >>> m
+        masked_array(data=[23, 23, 23, 23, 23, 23, --, --, 23, --],
+                     mask=[False, False, False, False, False, False,
+                           True, True, False, True],
+               fill_value=999999)
+
+        """
         return self._hardmask
 
     def unshare_mask(self):
         """
-        Copy the mask and set the sharedmask flag to False.
+        Copy the mask and set the `sharedmask` flag to ``False``.
 
         Whether the mask is shared between masked arrays can be seen from
-        the `sharedmask` property. `unshare_mask` ensures the mask is not shared.
-        A copy of the mask is only made if it was shared.
+        the `sharedmask` property. `unshare_mask` ensures the mask is not
+        shared. A copy of the mask is only made if it was shared.
 
         See Also
         --------
@@ -4244,8 +4293,9 @@ class MaskedArray(ndarray):
         else:
             if m is not nomask:
                 self._mask += m
-        self._data.__iadd__(np.where(self._mask, self.dtype.type(0),
-                                     getdata(other)))
+        other_data = getdata(other)
+        other_data = np.where(self._mask, other_data.dtype.type(0), other_data)
+        self._data.__iadd__(other_data)
         return self
 
     def __isub__(self, other):
@@ -4260,8 +4310,9 @@ class MaskedArray(ndarray):
                 self._mask += m
         elif m is not nomask:
             self._mask += m
-        self._data.__isub__(np.where(self._mask, self.dtype.type(0),
-                                     getdata(other)))
+        other_data = getdata(other)
+        other_data = np.where(self._mask, other_data.dtype.type(0), other_data)
+        self._data.__isub__(other_data)
         return self
 
     def __imul__(self, other):
@@ -4276,8 +4327,9 @@ class MaskedArray(ndarray):
                 self._mask += m
         elif m is not nomask:
             self._mask += m
-        self._data.__imul__(np.where(self._mask, self.dtype.type(1),
-                                     getdata(other)))
+        other_data = getdata(other)
+        other_data = np.where(self._mask, other_data.dtype.type(1), other_data)
+        self._data.__imul__(other_data)
         return self
 
     def __idiv__(self, other):
@@ -4289,13 +4341,14 @@ class MaskedArray(ndarray):
         dom_mask = _DomainSafeDivide().__call__(self._data, other_data)
         other_mask = getmask(other)
         new_mask = mask_or(other_mask, dom_mask)
-        # The following 3 lines control the domain filling
+        # The following 4 lines control the domain filling
         if dom_mask.any():
             (_, fval) = ufunc_fills[np.divide]
-            other_data = np.where(dom_mask, fval, other_data)
+            other_data = np.where(
+                    dom_mask, other_data.dtype.type(fval), other_data)
         self._mask |= new_mask
-        self._data.__idiv__(np.where(self._mask, self.dtype.type(1),
-                                     other_data))
+        other_data = np.where(self._mask, other_data.dtype.type(1), other_data)
+        self._data.__idiv__(other_data)
         return self
 
     def __ifloordiv__(self, other):
@@ -4310,10 +4363,11 @@ class MaskedArray(ndarray):
         # The following 3 lines control the domain filling
         if dom_mask.any():
             (_, fval) = ufunc_fills[np.floor_divide]
-            other_data = np.where(dom_mask, fval, other_data)
+            other_data = np.where(
+                    dom_mask, other_data.dtype.type(fval), other_data)
         self._mask |= new_mask
-        self._data.__ifloordiv__(np.where(self._mask, self.dtype.type(1),
-                                          other_data))
+        other_data = np.where(self._mask, other_data.dtype.type(1), other_data)
+        self._data.__ifloordiv__(other_data)
         return self
 
     def __itruediv__(self, other):
@@ -4328,10 +4382,11 @@ class MaskedArray(ndarray):
         # The following 3 lines control the domain filling
         if dom_mask.any():
             (_, fval) = ufunc_fills[np.true_divide]
-            other_data = np.where(dom_mask, fval, other_data)
+            other_data = np.where(
+                    dom_mask, other_data.dtype.type(fval), other_data)
         self._mask |= new_mask
-        self._data.__itruediv__(np.where(self._mask, self.dtype.type(1),
-                                         other_data))
+        other_data = np.where(self._mask, other_data.dtype.type(1), other_data)
+        self._data.__itruediv__(other_data)
         return self
 
     def __ipow__(self, other):
@@ -4340,10 +4395,10 @@ class MaskedArray(ndarray):
 
         """
         other_data = getdata(other)
+        other_data = np.where(self._mask, other_data.dtype.type(1), other_data)
         other_mask = getmask(other)
         with np.errstate(divide='ignore', invalid='ignore'):
-            self._data.__ipow__(np.where(self._mask, self.dtype.type(1),
-                                         other_data))
+            self._data.__ipow__(other_data)
         invalid = np.logical_not(np.isfinite(self._data))
         if invalid.any():
             if self._mask is not nomask:
@@ -4805,7 +4860,6 @@ class MaskedArray(ndarray):
           WRITEABLE : True
           ALIGNED : True
           WRITEBACKIFCOPY : False
-          UPDATEIFCOPY : False
 
         """
         return self.flags['CONTIGUOUS']
@@ -5660,9 +5714,12 @@ class MaskedArray(ndarray):
 
         Parameters
         ----------
-        axis : {None, int}, optional
+        axis : None or int or tuple of ints, optional
             Axis along which to operate.  By default, ``axis`` is None and the
             flattened input is used.
+            .. versionadded:: 1.7.0
+            If this is a tuple of ints, the minimum is selected over multiple
+            axes, instead of a single axis or all the axes as before.
         out : array_like, optional
             Alternative output array in which to place the result.  Must be of
             the same shape and buffer length as the expected output.
@@ -5794,9 +5851,12 @@ class MaskedArray(ndarray):
 
         Parameters
         ----------
-        axis : {None, int}, optional
+        axis : None or int or tuple of ints, optional
             Axis along which to operate.  By default, ``axis`` is None and the
             flattened input is used.
+            .. versionadded:: 1.7.0
+            If this is a tuple of ints, the maximum is selected over multiple
+            axes, instead of a single axis or all the axes as before.
         out : array_like, optional
             Alternative output array in which to place the result.  Must
             be of the same shape and buffer length as the expected output.
@@ -8154,7 +8214,7 @@ class _convert2ma:
 
 
 arange = _convert2ma(
-    'arange', 
+    'arange',
     params=dict(fill_value=None, hardmask=False),
     np_ret='arange : ndarray',
     np_ma_ret='arange : MaskedArray',
@@ -8172,7 +8232,7 @@ diff = _convert2ma(
     np_ma_ret='diff : MaskedArray',
 )
 empty = _convert2ma(
-    'empty', 
+    'empty',
     params=dict(fill_value=None, hardmask=False),
     np_ret='out : ndarray',
     np_ma_ret='out : MaskedArray',
@@ -8193,7 +8253,7 @@ fromfunction = _convert2ma(
    np_ma_ret='fromfunction: MaskedArray',
 )
 identity = _convert2ma(
-    'identity', 
+    'identity',
     params=dict(fill_value=None, hardmask=False),
     np_ret='out : ndarray',
     np_ma_ret='out : MaskedArray',

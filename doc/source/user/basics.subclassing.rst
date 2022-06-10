@@ -31,6 +31,49 @@ things like array slicing.  The complications of subclassing ndarray are
 due to the mechanisms numpy has to support these latter two routes of
 instance creation.
 
+When to use subclassing
+=======================
+
+Besides the additional complexities of subclassing a NumPy array, subclasses
+can run into unexpected behaviour because some functions may convert the
+subclass to a baseclass and "forget" any additional information
+associated with the subclass.
+This can result in surprising behavior if you use NumPy methods or
+functions you have not explicitly tested.
+
+On the other hand, compared to other interoperability approaches,
+subclassing can be a useful because many thing will "just work".
+
+This means that subclassing can be a convenient approach and for a long time
+it was also often the only available approach.
+However, NumPy now provides additional interoperability protocols described
+in ":ref:`Interoperability with NumPy <basics.interoperability>`".
+For many use-cases these interoperability protocols may now be a better fit
+or supplement the use of subclassing.
+
+Subclassing can be a good fit if:
+
+* you are less worried about maintainability or users other than yourself:
+  Subclass will be faster to implement and additional interoperability
+  can be added "as-needed".  And with few users, possible surprises are not
+  an issue.
+* you do not think it is problematic if the subclass information is
+  ignored or lost silently.  An example is ``np.memmap`` where "forgetting"
+  about data being memory mapped cannot lead to a wrong result.
+  An example of a subclass that sometimes confuses users are NumPy's masked
+  arrays.  When they were introduced, subclassing was the only approach for
+  implementation.  However, today we would possibly try to avoid subclassing
+  and rely only on interoperability protocols.
+
+Note that also subclass authors may wish to study
+:ref:`Interoperability with NumPy <basics.interoperability>`
+to support more complex use-cases or work around the surprising behavior.
+
+``astropy.units.Quantity`` and ``xarray`` are examples for array-like objects
+that interoperate well with NumPy.  Astropy's ``Quantity`` is an example
+which uses a dual approach of both subclassing and interoperability protocols.
+
+
 .. _view-casting:
 
 View casting
@@ -48,7 +91,7 @@ ndarray of any subclass, and return a view of the array as another
 >>> # take a view of it, as our useless subclass
 >>> c_arr = arr.view(C)
 >>> type(c_arr)
-<class 'C'>
+<class '__main__.C'>
 
 .. _new-from-template:
 
@@ -63,7 +106,7 @@ For example:
 
 >>> v = c_arr[1:]
 >>> type(v) # the view is of type 'C'
-<class 'C'>
+<class '__main__.C'>
 >>> v is c_arr # but it's a new instance
 False
 
@@ -114,18 +157,15 @@ __new__ documentation
 
 For example, consider the following Python code:
 
-.. testcode::
-
-  class C:
-      def __new__(cls, *args):
-          print('Cls in __new__:', cls)
-          print('Args in __new__:', args)
-          # The `object` type __new__ method takes a single argument.
-          return object.__new__(cls)
-
-      def __init__(self, *args):
-          print('type(self) in __init__:', type(self))
-          print('Args in __init__:', args)
+>>> class C:
+>>>     def __new__(cls, *args):
+>>>         print('Cls in __new__:', cls)
+>>>         print('Args in __new__:', args)
+>>>         # The `object` type __new__ method takes a single argument.
+>>>         return object.__new__(cls)
+>>>     def __init__(self, *args):
+>>>         print('type(self) in __init__:', type(self))
+>>>         print('Args in __init__:', args)
 
 meaning that we get:
 
@@ -526,7 +566,7 @@ which inputs and outputs it converted. Hence, e.g.,
 >>> a.info
 {'inputs': [0, 1], 'outputs': [0]}
 
-Note that another approach would be to to use ``getattr(ufunc,
+Note that another approach would be to use ``getattr(ufunc,
 methods)(*inputs, **kwargs)`` instead of the ``super`` call. For this example,
 the result would be identical, but there is a difference if another operand
 also defines ``__array_ufunc__``. E.g., lets assume that we evalulate

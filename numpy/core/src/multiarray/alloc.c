@@ -62,6 +62,25 @@ npy_clean_caches()
 
 
 /*
+ * This function tells whether NumPy attempts to call `madvise` with
+ * `MADV_HUGEPAGE`.  `madvise` is only ever used on linux, so the value
+ * of `_madvise_hugepage` may be ignored.
+ *
+ * It is exposed to Python as `np.core.multiarray._get_madvise_hugepage`.
+ */
+NPY_NO_EXPORT PyObject *
+_get_madvise_hugepage(PyObject *NPY_UNUSED(self), PyObject *NPY_UNUSED(args))
+{
+#ifdef NPY_OS_LINUX
+    if (_madvise_hugepage) {
+        Py_RETURN_TRUE;
+    }
+#endif
+    Py_RETURN_FALSE;
+}
+
+
+/*
  * This function enables or disables the use of `MADV_HUGEPAGE` on Linux
  * by modifying the global static `_madvise_hugepage`.
  * It returns the previous value of `_madvise_hugepage`.
@@ -209,6 +228,24 @@ npy_free_cache_dim(void * p, npy_uintp sz)
                     &PyArray_free);
 }
 
+/* Similar to array_dealloc in arrayobject.c */
+static NPY_INLINE void
+WARN_NO_RETURN(PyObject* warning, const char * msg) {
+    if (PyErr_WarnEx(warning, msg, 1) < 0) {
+        PyObject * s;
+
+        s = PyUnicode_FromString("PyDataMem_UserFREE");
+        if (s) {
+            PyErr_WriteUnraisable(s);
+            Py_DECREF(s);
+        }
+        else {
+            PyErr_WriteUnraisable(Py_None);
+        }
+    }
+}
+
+
 
 /* malloc/free/realloc hook */
 NPY_NO_EXPORT PyDataMem_EventHookFunc *_PyDataMem_eventhook = NULL;
@@ -233,6 +270,8 @@ NPY_NO_EXPORT void *_PyDataMem_eventhook_user_data = NULL;
  * operations that might cause new allocation events (such as the
  * creation/destruction numpy objects, or creating/destroying Python
  * objects which might cause a gc)
+ *
+ * Deprecated in 1.23
  */
 NPY_NO_EXPORT PyDataMem_EventHookFunc *
 PyDataMem_SetEventHook(PyDataMem_EventHookFunc *newhook,
@@ -241,6 +280,10 @@ PyDataMem_SetEventHook(PyDataMem_EventHookFunc *newhook,
     PyDataMem_EventHookFunc *temp;
     NPY_ALLOW_C_API_DEF
     NPY_ALLOW_C_API
+    /* 2021-11-18, 1.23 */
+    WARN_NO_RETURN(PyExc_DeprecationWarning,
+                     "PyDataMem_SetEventHook is deprecated, use tracemalloc "
+                     "and the 'np.lib.tracemalloc_domain' domain");
     temp = _PyDataMem_eventhook;
     _PyDataMem_eventhook = newhook;
     if (old_data != NULL) {
@@ -404,10 +447,7 @@ PyDataMem_Handler default_handler = {
 };
 /* singleton capsule of the default handler */
 PyObject *PyDataMem_DefaultHandler;
-
-#if (!defined(PYPY_VERSION_NUM) || PYPY_VERSION_NUM >= 0x07030600)
 PyObject *current_handler;
-#endif
 
 int uo_index=0;   /* user_override index */
 
@@ -458,33 +498,14 @@ PyDataMem_UserNEW_ZEROED(size_t nmemb, size_t size, PyObject *mem_handler)
     return result;
 }
 
-/* Similar to array_dealloc in arrayobject.c */
-static NPY_INLINE void
-WARN_IN_FREE(PyObject* warning, const char * msg) {
-    if (PyErr_WarnEx(warning, msg, 1) < 0) {
-        PyObject * s;
-
-        s = PyUnicode_FromString("PyDataMem_UserFREE");
-        if (s) {
-            PyErr_WriteUnraisable(s);
-            Py_DECREF(s);
-        }
-        else {
-            PyErr_WriteUnraisable(Py_None);
-        }
-    }
-}
-
-
 
 NPY_NO_EXPORT void
 PyDataMem_UserFREE(void *ptr, size_t size, PyObject *mem_handler)
 {
     PyDataMem_Handler *handler = (PyDataMem_Handler *) PyCapsule_GetPointer(mem_handler, "mem_handler");
     if (handler == NULL) {
-        WARN_IN_FREE(PyExc_RuntimeWarning,
+        WARN_NO_RETURN(PyExc_RuntimeWarning,
                      "Could not get pointer to 'mem_handler' from PyCapsule");
-        PyErr_Clear();
         return;
     }
     PyTraceMalloc_Untrack(NPY_TRACE_DOMAIN, (npy_uintp)ptr);
@@ -538,7 +559,6 @@ NPY_NO_EXPORT PyObject *
 PyDataMem_SetHandler(PyObject *handler)
 {
     PyObject *old_handler;
-#if (!defined(PYPY_VERSION_NUM) || PYPY_VERSION_NUM >= 0x07030600)
     PyObject *token;
     if (PyContextVar_Get(current_handler, NULL, &old_handler)) {
         return NULL;
@@ -553,27 +573,6 @@ PyDataMem_SetHandler(PyObject *handler)
     }
     Py_DECREF(token);
     return old_handler;
-#else
-    PyObject *p;
-    p = PyThreadState_GetDict();
-    if (p == NULL) {
-        return NULL;
-    }
-    old_handler = PyDict_GetItemString(p, "current_allocator");
-    if (old_handler == NULL) {
-        old_handler = PyDataMem_DefaultHandler
-    }
-    Py_INCREF(old_handler);
-    if (handler == NULL) {
-        handler = PyDataMem_DefaultHandler;
-    }
-    const int error = PyDict_SetItemString(p, "current_allocator", handler);
-    if (error) {
-        Py_DECREF(old_handler);
-        return NULL;
-    }
-    return old_handler;
-#endif
 }
 
 /*NUMPY_API
@@ -584,28 +583,10 @@ NPY_NO_EXPORT PyObject *
 PyDataMem_GetHandler()
 {
     PyObject *handler;
-#if (!defined(PYPY_VERSION_NUM) || PYPY_VERSION_NUM >= 0x07030600)
     if (PyContextVar_Get(current_handler, NULL, &handler)) {
         return NULL;
     }
     return handler;
-#else
-    PyObject *p = PyThreadState_GetDict();
-    if (p == NULL) {
-        return NULL;
-    }
-    handler = PyDict_GetItemString(p, "current_allocator");
-    if (handler == NULL) {
-        handler = PyCapsule_New(&default_handler, "mem_handler", NULL);
-        if (handler == NULL) {
-            return NULL;
-        }
-    }
-    else {
-        Py_INCREF(handler);
-    }
-    return handler;
-#endif
 }
 
 NPY_NO_EXPORT PyObject *

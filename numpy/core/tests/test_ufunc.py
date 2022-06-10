@@ -14,6 +14,7 @@ from numpy.testing import (
     assert_almost_equal, assert_array_almost_equal, assert_no_warnings,
     assert_allclose, HAS_REFCOUNT, suppress_warnings
     )
+from numpy.testing._private.utils import requires_memory
 from numpy.compat import pickle
 
 
@@ -388,7 +389,7 @@ class TestUfunc:
         assert_equal(ixs, (0, 0, 0, 1, 2))
         assert_equal(flags, (self.can_ignore, self.size_inferred, 0))
         assert_equal(sizes, (3, -1, 9))
-    
+
     def test_signature9(self):
         enabled, num_dims, ixs, flags, sizes = umt.test_signature(
             1, 1, "(  3)  -> ( )")
@@ -1555,6 +1556,17 @@ class TestUfunc:
                                     [[0, 1, 1], [1, 1, 1]])
         assert_equal(np.minimum.reduce(a, axis=()), a)
 
+    @requires_memory(6 * 1024**3)
+    def test_identityless_reduction_huge_array(self):
+        # Regression test for gh-20921 (copying identity incorrectly failed)
+        arr = np.zeros((2, 2**31), 'uint8')
+        arr[:, 0] = [1, 3]
+        arr[:, -1] = [4, 1]
+        res = np.maximum.reduce(arr, axis=0)
+        del arr
+        assert res[0] == 3
+        assert res[-1] == 4
+
     def test_identityless_reduction_corder(self):
         a = np.empty((2, 3, 4), order='C')
         self.check_identityless_reduction(a)
@@ -1762,12 +1774,15 @@ class TestUfunc:
         result = _rational_tests.test_add(a, b)
         assert_equal(result, target)
 
-        # But since we use the old type resolver, this may not work
-        # for dtype variations unless the output dtype is given:
+        # This works even more generally, so long the default common-dtype
+        # promoter works out:
         result = _rational_tests.test_add(a, b.astype(np.uint16), out=c)
         assert_equal(result, target)
+
+        # But, it can be fooled, e.g. (use scalars, which forces legacy
+        # type resolution to kick in, which then fails):
         with assert_raises(TypeError):
-            _rational_tests.test_add(a, b.astype(np.uint16))
+            _rational_tests.test_add(a, np.uint16(2))
 
     def test_operand_flags(self):
         a = np.arange(16, dtype='l').reshape(4, 4)
@@ -1987,6 +2002,20 @@ class TestUfunc:
         # Test multiple output ufuncs raise error, gh-5665
         assert_raises(ValueError, np.modf.at, np.arange(10), [1])
 
+        # Test maximum
+        a = np.array([1, 2, 3])
+        np.maximum.at(a, [0], 0)
+        assert_equal(np.array([1, 2, 3]), a)
+
+    def test_at_not_none_signature(self):
+        # Test ufuncs with non-trivial signature raise a TypeError
+        a = np.ones((2, 2, 2))
+        b = np.ones((1, 2, 2))
+        assert_raises(TypeError, np.matmul.at, a, [0], b)
+
+        a = np.array([[[1, 2], [3, 4]]])
+        assert_raises(TypeError, np.linalg._umath_linalg.det.at, a, [0])
+
     def test_reduce_arguments(self):
         f = np.add.reduce
         d = np.ones((5,2), dtype=int)
@@ -2119,10 +2148,38 @@ class TestUfunc:
             [np.logical_and, np.logical_or, np.logical_xor])
     def test_logical_ufuncs_support_anything(self, ufunc):
         # The logical ufuncs support even input that can't be promoted:
-        a = np.array('1')
+        a = np.array(b'1', dtype="V3")
         c = np.array([1., 2.])
         assert_array_equal(ufunc(a, c), ufunc([True, True], True))
         assert ufunc.reduce(a) == True
+        # check that the output has no effect:
+        out = np.zeros(2, dtype=np.int32)
+        expected = ufunc([True, True], True).astype(out.dtype)
+        assert_array_equal(ufunc(a, c, out=out), expected)
+        out = np.zeros((), dtype=np.int32)
+        assert ufunc.reduce(a, out=out) == True
+        # Last check, test reduction when out and a match (the complexity here
+        # is that the "i,i->?" may seem right, but should not match.
+        a = np.array([3], dtype="i")
+        out = np.zeros((), dtype=a.dtype)
+        assert ufunc.reduce(a, out=out) == 1
+
+    @pytest.mark.parametrize("ufunc",
+            [np.logical_and, np.logical_or, np.logical_xor])
+    def test_logical_ufuncs_reject_string(self, ufunc):
+        """
+        Logical ufuncs are normally well defined by working with the boolean
+        equivalent, i.e. casting all inputs to bools should work.
+
+        However, casting strings to bools is *currently* weird, because it
+        actually uses `bool(int(str))`.  Thus we explicitly reject strings.
+        This test should succeed (and can probably just be removed) as soon as
+        string to bool casts are well defined in NumPy.
+        """
+        with pytest.raises(TypeError, match="contain a loop with signature"):
+            ufunc(["1"], ["3"])
+        with pytest.raises(TypeError, match="contain a loop with signature"):
+            ufunc.reduce(["1", "2", "0"])
 
     @pytest.mark.parametrize("ufunc",
              [np.logical_and, np.logical_or, np.logical_xor])
@@ -2133,6 +2190,60 @@ class TestUfunc:
         with pytest.raises(TypeError):
             # It would be safe, but not equiv casting:
             ufunc(a, c, out=out, casting="equiv")
+
+    def test_reducelike_byteorder_resolution(self):
+        # See gh-20699, byte-order changes need some extra care in the type
+        # resolution to make the following succeed:
+        arr_be = np.arange(10, dtype=">i8")
+        arr_le = np.arange(10, dtype="<i8")
+
+        assert np.add.reduce(arr_be) == np.add.reduce(arr_le)
+        assert_array_equal(np.add.accumulate(arr_be), np.add.accumulate(arr_le))
+        assert_array_equal(
+            np.add.reduceat(arr_be, [1]), np.add.reduceat(arr_le, [1]))
+
+    def test_reducelike_out_promotes(self):
+        # Check that the out argument to reductions is considered for
+        # promotion.  See also gh-20455.
+        # Note that these paths could prefer `initial=` in the future and
+        # do not up-cast to the default integer for add and prod
+        arr = np.ones(1000, dtype=np.uint8)
+        out = np.zeros((), dtype=np.uint16)
+        assert np.add.reduce(arr, out=out) == 1000
+        arr[:10] = 2
+        assert np.multiply.reduce(arr, out=out) == 2**10
+
+        # For legacy dtypes, the signature currently has to be forced if `out=`
+        # is passed.  The two paths below should differ, without `dtype=` the
+        # expected result should be: `np.prod(arr.astype("f8")).astype("f4")`!
+        arr = np.full(5, 2**25-1, dtype=np.int64)
+
+        # float32 and int64 promote to float64:
+        res = np.zeros((), dtype=np.float32)
+        # If `dtype=` is passed, the calculation is forced to float32:
+        single_res = np.zeros((), dtype=np.float32)
+        np.multiply.reduce(arr, out=single_res, dtype=np.float32)
+        assert single_res != res
+
+    def test_reducelike_output_needs_identical_cast(self):
+        # Checks the case where the we have a simple byte-swap works, maily
+        # tests that this is not rejected directly.
+        # (interesting because we require descriptor identity in reducelikes).
+        arr = np.ones(20, dtype="f8")
+        out = np.empty((), dtype=arr.dtype.newbyteorder())
+        expected = np.add.reduce(arr)
+        np.add.reduce(arr, out=out)
+        assert_array_equal(expected, out)
+        # Check reduceat:
+        out = np.empty(2, dtype=arr.dtype.newbyteorder())
+        expected = np.add.reduceat(arr, [0, 1])
+        np.add.reduceat(arr, [0, 1], out=out)
+        assert_array_equal(expected, out)
+        # And accumulate:
+        out = np.empty(arr.shape, dtype=arr.dtype.newbyteorder())
+        expected = np.add.accumulate(arr)
+        np.add.accumulate(arr, out=out)
+        assert_array_equal(expected, out)
 
     def test_reduce_noncontig_output(self):
         # Check that reduction deals with non-contiguous output arrays
@@ -2410,3 +2521,57 @@ def test_ufunc_methods_floaterrors(method):
     with np.errstate(all="raise"):
         with pytest.raises(FloatingPointError):
             method(arr)
+
+
+def _check_neg_zero(value):
+    if value != 0.0:
+        return False
+    if not np.signbit(value.real):
+        return False
+    if value.dtype.kind == "c":
+        return np.signbit(value.imag)
+    return True
+
+@pytest.mark.parametrize("dtype", np.typecodes["AllFloat"])
+def test_addition_negative_zero(dtype):
+    dtype = np.dtype(dtype)
+    if dtype.kind == "c":
+        neg_zero = dtype.type(complex(-0.0, -0.0))
+    else:
+        neg_zero = dtype.type(-0.0)
+
+    arr = np.array(neg_zero)
+    arr2 = np.array(neg_zero)
+
+    assert _check_neg_zero(arr + arr2)
+    # In-place ops may end up on a different path (reduce path) see gh-21211
+    arr += arr2
+    assert _check_neg_zero(arr)
+
+
+@pytest.mark.parametrize("dtype", np.typecodes["AllFloat"])
+@pytest.mark.parametrize("use_initial", [True, False])
+def test_addition_reduce_negative_zero(dtype, use_initial):
+    dtype = np.dtype(dtype)
+    if dtype.kind == "c":
+        neg_zero = dtype.type(complex(-0.0, -0.0))
+    else:
+        neg_zero = dtype.type(-0.0)
+
+    kwargs = {}
+    if use_initial:
+        kwargs["initial"] = neg_zero
+    else:
+        pytest.xfail("-0. propagation in sum currently requires initial")
+
+    # Test various length, in case SIMD paths or chunking play a role.
+    # 150 extends beyond the pairwise blocksize; probably not important.
+    for i in range(0, 150):
+        arr = np.array([neg_zero] * i, dtype=dtype)
+        res = np.sum(arr, **kwargs)
+        if i > 0 or use_initial:
+            assert _check_neg_zero(res)
+        else:
+            # `sum([])` should probably be 0.0 and not -0.0 like `sum([-0.0])`
+            assert not np.signbit(res.real)
+            assert not np.signbit(res.imag)

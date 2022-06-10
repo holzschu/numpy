@@ -67,8 +67,8 @@
  *
  * The code here avoid multiple conversion of array-like objects (including
  * sequences). These objects are cached after conversion, which will require
- * additional memory, but can drastically speed up coercion from from array
- * like objects.
+ * additional memory, but can drastically speed up coercion from array like
+ * objects.
  */
 
 
@@ -236,6 +236,16 @@ npy_discover_dtype_from_pytype(PyTypeObject *pytype)
     }
     assert(PyObject_TypeCheck(DType, (PyTypeObject *)&PyArrayDTypeMeta_Type));
     return (PyArray_DTypeMeta *)DType;
+}
+
+/*
+ * Note: This function never fails, but will return `NULL` for unknown scalars
+ *       and `None` for known array-likes (e.g. tuple, list, ndarray).
+ */
+NPY_NO_EXPORT PyObject *
+PyArray_DiscoverDTypeFromScalarType(PyTypeObject *pytype)
+{
+    return (PyObject *)npy_discover_dtype_from_pytype(pytype);
 }
 
 
@@ -866,6 +876,7 @@ PyArray_AdaptDescriptorToArray(PyArrayObject *arr, PyObject *dtype)
  *        (Initially it is a pointer to the user-provided head pointer).
  * @param fixed_DType User provided fixed DType class
  * @param flags Discovery flags (reporting and behaviour flags, see def.)
+ * @param never_copy Specifies if a copy is allowed during array creation.
  * @return The updated number of maximum dimensions (i.e. scalars will set
  *         this to the current dimensions).
  */
@@ -874,7 +885,8 @@ PyArray_DiscoverDTypeAndShape_Recursive(
         PyObject *obj, int curr_dims, int max_dims, PyArray_Descr**out_descr,
         npy_intp out_shape[NPY_MAXDIMS],
         coercion_cache_obj ***coercion_cache_tail_ptr,
-        PyArray_DTypeMeta *fixed_DType, enum _dtype_discovery_flags *flags)
+        PyArray_DTypeMeta *fixed_DType, enum _dtype_discovery_flags *flags,
+        int never_copy)
 {
     PyArrayObject *arr = NULL;
     PyObject *seq;
@@ -932,7 +944,7 @@ PyArray_DiscoverDTypeAndShape_Recursive(
             requested_descr = *out_descr;
         }
         arr = (PyArrayObject *)_array_from_array_like(obj,
-                requested_descr, 0, NULL);
+                requested_descr, 0, NULL, never_copy);
         if (arr == NULL) {
             return -1;
         }
@@ -1126,7 +1138,7 @@ PyArray_DiscoverDTypeAndShape_Recursive(
         max_dims = PyArray_DiscoverDTypeAndShape_Recursive(
                 objects[i], curr_dims + 1, max_dims,
                 out_descr, out_shape, coercion_cache_tail_ptr, fixed_DType,
-                flags);
+                flags, never_copy);
 
         if (max_dims < 0) {
             return -1;
@@ -1166,6 +1178,7 @@ PyArray_DiscoverDTypeAndShape_Recursive(
  *        The result may be unchanged (remain NULL) when converting a
  *        sequence with no elements. In this case it is callers responsibility
  *        to choose a default.
+ * @param never_copy Specifies that a copy is not allowed.
  * @return dimensions of the discovered object or -1 on error.
  *         WARNING: If (and only if) the output is a single array, the ndim
  *         returned _can_ exceed the maximum allowed number of dimensions.
@@ -1178,7 +1191,7 @@ PyArray_DiscoverDTypeAndShape(
         npy_intp out_shape[NPY_MAXDIMS],
         coercion_cache_obj **coercion_cache,
         PyArray_DTypeMeta *fixed_DType, PyArray_Descr *requested_descr,
-        PyArray_Descr **out_descr)
+        PyArray_Descr **out_descr, int never_copy)
 {
     coercion_cache_obj **coercion_cache_head = coercion_cache;
     *coercion_cache = NULL;
@@ -1223,7 +1236,7 @@ PyArray_DiscoverDTypeAndShape(
 
     int ndim = PyArray_DiscoverDTypeAndShape_Recursive(
             obj, 0, max_dims, out_descr, out_shape, &coercion_cache,
-            fixed_DType, &flags);
+            fixed_DType, &flags, never_copy);
     if (ndim < 0) {
         goto fail;
     }
@@ -1516,7 +1529,7 @@ _discover_array_parameters(PyObject *NPY_UNUSED(self),
     int ndim = PyArray_DiscoverDTypeAndShape(
             obj, NPY_MAXDIMS, shape,
             &coercion_cache,
-            fixed_DType, fixed_descriptor, (PyArray_Descr **)&out_dtype);
+            fixed_DType, fixed_descriptor, (PyArray_Descr **)&out_dtype, 0);
     Py_XDECREF(fixed_DType);
     Py_XDECREF(fixed_descriptor);
     if (ndim < 0) {

@@ -17,20 +17,8 @@ from numpy.testing import (
     assert_array_max_ulp, assert_allclose, assert_no_warnings, suppress_warnings,
     _gen_alignment_data, assert_array_almost_equal_nulp
     )
+from numpy.testing._private.utils import _glibc_older_than
 
-def get_glibc_version():
-    try:
-        ver = os.confstr('CS_GNU_LIBC_VERSION').rsplit(' ')[1]
-    except Exception as inst:
-        ver = '0.0'
-
-    return ver
-
-
-glibcver = get_glibc_version()
-glibc_newerthan_2_17 = pytest.mark.xfail(
-        glibcver != '0.0' and glibcver < '2.17',
-        reason="Older glibc versions may not raise appropriate FP exceptions")
 
 def on_powerpc():
     """ True if we are running on a Power PC platform."""
@@ -49,14 +37,6 @@ def bad_arcsinh():
     v2 = np.arcsinh(np.complex256(x)).real
     # The eps for float128 is 1-e33, so this is way bigger
     return abs((v1 / v2) - 1.0) > 1e-23
-
-if platform.machine() == 'aarch64' and bad_arcsinh():
-    skip_longcomplex_msg = ('Trig functions of np.longcomplex values known to be '
-                            'inaccurate on aarch64 for some compilation '
-                            'configurations, should be fixed by building on a '
-                            'platform using glibc>2.17')
-else:
-    skip_longcomplex_msg = ''
 
 
 class _FilterInvalids:
@@ -205,6 +185,52 @@ class TestOut:
 
 
 class TestComparisons:
+    import operator
+
+    @pytest.mark.parametrize('dtype', np.sctypes['uint'] + np.sctypes['int'] +
+                             np.sctypes['float'] + [np.bool_])
+    @pytest.mark.parametrize('py_comp,np_comp', [
+        (operator.lt, np.less),
+        (operator.le, np.less_equal),
+        (operator.gt, np.greater),
+        (operator.ge, np.greater_equal),
+        (operator.eq, np.equal),
+        (operator.ne, np.not_equal)
+    ])
+    def test_comparison_functions(self, dtype, py_comp, np_comp):
+        # Initialize input arrays
+        if dtype == np.bool_:
+            a = np.random.choice(a=[False, True], size=1000)
+            b = np.random.choice(a=[False, True], size=1000)
+            scalar = True
+        else:
+            a = np.random.randint(low=1, high=10, size=1000).astype(dtype)
+            b = np.random.randint(low=1, high=10, size=1000).astype(dtype)
+            scalar = 5
+        np_scalar = np.dtype(dtype).type(scalar)
+        a_lst = a.tolist()
+        b_lst = b.tolist()
+
+        # (Binary) Comparison (x1=array, x2=array)
+        comp_b = np_comp(a, b)
+        comp_b_list = [py_comp(x, y) for x, y in zip(a_lst, b_lst)]
+
+        # (Scalar1) Comparison (x1=scalar, x2=array)
+        comp_s1 = np_comp(np_scalar, b)
+        comp_s1_list = [py_comp(scalar, x) for x in b_lst]
+
+        # (Scalar2) Comparison (x1=array, x2=scalar)
+        comp_s2 = np_comp(a, np_scalar)
+        comp_s2_list = [py_comp(x, scalar) for x in a_lst]
+
+        # Sequence: Binary, Scalar1 and Scalar2
+        assert_(comp_b.tolist() == comp_b_list,
+            f"Failed comparision ({py_comp.__name__})")
+        assert_(comp_s1.tolist() == comp_s1_list,
+            f"Failed comparision ({py_comp.__name__})")
+        assert_(comp_s2.tolist() == comp_s2_list,
+            f"Failed comparision ({py_comp.__name__})")
+
     def test_ignore_object_identity_in_equal(self):
         # Check comparing identical objects whose comparison
         # is not a simple boolean, e.g., arrays that are compared elementwise.
@@ -1015,16 +1041,19 @@ class TestExp:
 
 class TestSpecialFloats:
     def test_exp_values(self):
-        x = [np.nan,  np.nan, np.inf, 0.]
-        y = [np.nan, -np.nan, np.inf, -np.inf]
-        for dt in ['f', 'd', 'g']:
-            xf = np.array(x, dtype=dt)
-            yf = np.array(y, dtype=dt)
-            assert_equal(np.exp(yf), xf)
+        with np.errstate(under='raise', over='raise'):
+            x = [np.nan,  np.nan, np.inf, 0.]
+            y = [np.nan, -np.nan, np.inf, -np.inf]
+            for dt in ['f', 'd', 'g']:
+                xf = np.array(x, dtype=dt)
+                yf = np.array(y, dtype=dt)
+                assert_equal(np.exp(yf), xf)
 
-    # Older version of glibc may not raise the correct FP exceptions
     # See: https://github.com/numpy/numpy/issues/19192
-    @glibc_newerthan_2_17
+    @pytest.mark.xfail(
+        _glibc_older_than("2.17"),
+        reason="Older glibc versions may not raise appropriate FP exceptions"
+    )
     def test_exp_exceptions(self):
         with np.errstate(over='raise'):
             assert_raises(FloatingPointError, np.exp, np.float32(100.))
@@ -1270,6 +1299,11 @@ class TestSpecialFloats:
                     assert_raises(FloatingPointError, np.arctanh,
                                   np.array(value, dtype=dt))
 
+    # See: https://github.com/numpy/numpy/issues/20448
+    @pytest.mark.xfail(
+        _glibc_older_than("2.17"),
+        reason="Older glibc versions may not raise appropriate FP exceptions"
+    )
     def test_exp2(self):
         with np.errstate(all='ignore'):
             in_ = [np.nan, -np.nan, np.inf, -np.inf]
@@ -1405,8 +1439,10 @@ class TestAVXFloat32Transcendental:
         M = np.int_(N/20)
         index = np.random.randint(low=0, high=N, size=M)
         x_f32 = np.float32(np.random.uniform(low=-100.,high=100.,size=N))
-        # test coverage for elements > 117435.992f for which glibc is used
-        x_f32[index] = np.float32(10E+10*np.random.rand(M))
+        if not _glibc_older_than("2.17"):
+            # test coverage for elements > 117435.992f for which glibc is used
+            # this is known to be problematic on old glibc, so skip it there
+            x_f32[index] = np.float32(10E+10*np.random.rand(M))
         x_f64 = np.float64(x_f32)
         assert_array_max_ulp(np.sin(x_f32), np.float32(np.sin(x_f64)), maxulp=2)
         assert_array_max_ulp(np.cos(x_f32), np.float32(np.cos(x_f64)), maxulp=2)
@@ -1739,6 +1775,27 @@ class TestMaximum(_FilterInvalids):
         assert_equal(np.maximum(arr1[:6:2], arr2[::3], out=out[::3]), np.array([-2.0, 10., np.nan]))
         assert_equal(out, out_maxtrue)
 
+    def test_precision(self):
+        dtypes = [np.float16, np.float32, np.float64, np.longdouble]
+
+        for dt in dtypes:
+            dtmin = np.finfo(dt).min
+            dtmax = np.finfo(dt).max
+            d1 = dt(0.1)
+            d1_next = np.nextafter(d1, np.inf)
+
+            test_cases = [
+                # v1    v2          expected
+                (dtmin, -np.inf,    dtmin),
+                (dtmax, -np.inf,    dtmax),
+                (d1,    d1_next,    d1_next),
+                (dtmax, np.nan,     np.nan),
+            ]
+
+            for v1, v2, expected in test_cases:
+                assert_equal(np.maximum([v1], [v2]), [expected])
+                assert_equal(np.maximum.reduce([v1, v2]), expected)
+
 
 class TestMinimum(_FilterInvalids):
     def test_reduce(self):
@@ -1810,6 +1867,28 @@ class TestMinimum(_FilterInvalids):
         assert_equal(np.minimum(arr1[:6:2], arr2[::3], out=out[::3]), np.array([-4.0, 1.0, np.nan]))
         assert_equal(out, out_mintrue)
 
+    def test_precision(self):
+        dtypes = [np.float16, np.float32, np.float64, np.longdouble]
+
+        for dt in dtypes:
+            dtmin = np.finfo(dt).min
+            dtmax = np.finfo(dt).max
+            d1 = dt(0.1)
+            d1_next = np.nextafter(d1, np.inf)
+
+            test_cases = [
+                # v1    v2          expected
+                (dtmin, np.inf,     dtmin),
+                (dtmax, np.inf,     dtmax),
+                (d1,    d1_next,    d1),
+                (dtmin, np.nan,     np.nan),
+            ]
+
+            for v1, v2, expected in test_cases:
+                assert_equal(np.minimum([v1], [v2]), [expected])
+                assert_equal(np.minimum.reduce([v1, v2]), expected)
+
+
 class TestFmax(_FilterInvalids):
     def test_reduce(self):
         dflt = np.typecodes['AllFloat']
@@ -1850,6 +1929,27 @@ class TestFmax(_FilterInvalids):
             arg2 = np.array([cnan, 0, cnan], dtype=complex)
             out = np.array([0,    0, nan], dtype=complex)
             assert_equal(np.fmax(arg1, arg2), out)
+
+    def test_precision(self):
+        dtypes = [np.float16, np.float32, np.float64, np.longdouble]
+
+        for dt in dtypes:
+            dtmin = np.finfo(dt).min
+            dtmax = np.finfo(dt).max
+            d1 = dt(0.1)
+            d1_next = np.nextafter(d1, np.inf)
+
+            test_cases = [
+                # v1    v2          expected
+                (dtmin, -np.inf,    dtmin),
+                (dtmax, -np.inf,    dtmax),
+                (d1,    d1_next,    d1_next),
+                (dtmax, np.nan,     dtmax),
+            ]
+
+            for v1, v2, expected in test_cases:
+                assert_equal(np.fmax([v1], [v2]), [expected])
+                assert_equal(np.fmax.reduce([v1, v2]), expected)
 
 
 class TestFmin(_FilterInvalids):
@@ -1892,6 +1992,27 @@ class TestFmin(_FilterInvalids):
             arg2 = np.array([cnan, 0, cnan], dtype=complex)
             out = np.array([0,    0, nan], dtype=complex)
             assert_equal(np.fmin(arg1, arg2), out)
+
+    def test_precision(self):
+        dtypes = [np.float16, np.float32, np.float64, np.longdouble]
+
+        for dt in dtypes:
+            dtmin = np.finfo(dt).min
+            dtmax = np.finfo(dt).max
+            d1 = dt(0.1)
+            d1_next = np.nextafter(d1, np.inf)
+
+            test_cases = [
+                # v1    v2          expected
+                (dtmin, np.inf,     dtmin),
+                (dtmax, np.inf,     dtmax),
+                (d1,    d1_next,    d1),
+                (dtmin, np.nan,     dtmin),
+            ]
+
+            for v1, v2, expected in test_cases:
+                assert_equal(np.fmin([v1], [v2]), [expected])
+                assert_equal(np.fmin.reduce([v1, v2]), expected)
 
 
 class TestBool:
@@ -3440,12 +3561,13 @@ class TestComplexFunctions:
         x_basic = np.logspace(-2.999, 0, 10, endpoint=False)
 
         if dtype is np.longcomplex:
+            if (platform.machine() == 'aarch64' and bad_arcsinh()):
+                pytest.skip("Trig functions of np.longcomplex values known "
+                            "to be inaccurate on aarch64 for some compilation "
+                            "configurations.")
             # It's not guaranteed that the system-provided arc functions
             # are accurate down to a few epsilons. (Eg. on Linux 64-bit)
             # So, give more leeway for long complex tests here:
-            # Can use 2.1 for > Ubuntu LTS Trusty (2014), glibc = 2.19.
-            if skip_longcomplex_msg:
-                pytest.skip(skip_longcomplex_msg)
             check(x_series, 50.0*eps)
         else:
             check(x_series, 2.1*eps)

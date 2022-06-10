@@ -329,7 +329,8 @@ sfloat_to_sfloat_resolve_descriptors(
             PyArrayMethodObject *NPY_UNUSED(self),
             PyArray_DTypeMeta *NPY_UNUSED(dtypes[2]),
             PyArray_Descr *given_descrs[2],
-            PyArray_Descr *loop_descrs[2])
+            PyArray_Descr *loop_descrs[2],
+            npy_intp *view_offset)
 {
     loop_descrs[0] = given_descrs[0];
     Py_INCREF(loop_descrs[0]);
@@ -345,7 +346,8 @@ sfloat_to_sfloat_resolve_descriptors(
     if (((PyArray_SFloatDescr *)loop_descrs[0])->scaling
             == ((PyArray_SFloatDescr *)loop_descrs[1])->scaling) {
         /* same scaling is just a view */
-        return NPY_NO_CASTING | _NPY_CAST_IS_VIEW;
+        *view_offset = 0;
+        return NPY_NO_CASTING;
     }
     else if (-((PyArray_SFloatDescr *)loop_descrs[0])->scaling
              == ((PyArray_SFloatDescr *)loop_descrs[1])->scaling) {
@@ -388,7 +390,8 @@ float_to_from_sfloat_resolve_descriptors(
         PyArrayMethodObject *NPY_UNUSED(self),
         PyArray_DTypeMeta *dtypes[2],
         PyArray_Descr *NPY_UNUSED(given_descrs[2]),
-        PyArray_Descr *loop_descrs[2])
+        PyArray_Descr *loop_descrs[2],
+        npy_intp *view_offset)
 {
     loop_descrs[0] = NPY_DT_CALL_default_descr(dtypes[0]);
     if (loop_descrs[0] == NULL) {
@@ -398,7 +401,8 @@ float_to_from_sfloat_resolve_descriptors(
     if (loop_descrs[1] == NULL) {
         return -1;
     }
-    return NPY_NO_CASTING | _NPY_CAST_IS_VIEW;
+    *view_offset = 0;
+    return NPY_NO_CASTING;
 }
 
 
@@ -426,7 +430,8 @@ sfloat_to_bool_resolve_descriptors(
         PyArrayMethodObject *NPY_UNUSED(self),
         PyArray_DTypeMeta *NPY_UNUSED(dtypes[2]),
         PyArray_Descr *given_descrs[2],
-        PyArray_Descr *loop_descrs[2])
+        PyArray_Descr *loop_descrs[2],
+        npy_intp *NPY_UNUSED(view_offset))
 {
     Py_INCREF(given_descrs[0]);
     loop_descrs[0] = given_descrs[0];
@@ -545,7 +550,8 @@ multiply_sfloats_resolve_descriptors(
         PyArrayMethodObject *NPY_UNUSED(self),
         PyArray_DTypeMeta *NPY_UNUSED(dtypes[3]),
         PyArray_Descr *given_descrs[3],
-        PyArray_Descr *loop_descrs[3])
+        PyArray_Descr *loop_descrs[3],
+        npy_intp *NPY_UNUSED(view_offset))
 {
     /*
      * Multiply the scaling for the result.  If the result was passed in we
@@ -606,7 +612,8 @@ add_sfloats_resolve_descriptors(
         PyArrayMethodObject *NPY_UNUSED(self),
         PyArray_DTypeMeta *NPY_UNUSED(dtypes[3]),
         PyArray_Descr *given_descrs[3],
-        PyArray_Descr *loop_descrs[3])
+        PyArray_Descr *loop_descrs[3],
+        npy_intp *NPY_UNUSED(view_offset))
 {
     /*
      * Here we accept an output descriptor (the inner loop can deal with it),
