@@ -71,7 +71,7 @@ from .auxfuncs import (
     islong_double, islong_doublefunction, islong_long,
     islong_longfunction, ismoduleroutine, isoptional, isrequired,
     isscalar, issigned_long_longarray, isstring, isstringarray,
-    isstringfunction, issubroutine,
+    isstringfunction, issubroutine, isattr_value,
     issubroutine_wrap, isthreadsafe, isunsigned, isunsigned_char,
     isunsigned_chararray, isunsigned_long_long,
     isunsigned_long_longarray, isunsigned_short, isunsigned_shortarray,
@@ -874,7 +874,7 @@ if (#varname#_cb.capi==Py_None) {
     {  # Common
         'decl': '    #ctype# #varname# = 0;',
         'pyobjfrom': {debugcapi: '    fprintf(stderr,"#vardebugshowvalue#\\n",#varname#);'},
-        'callfortran': {isintent_c: '#varname#,', l_not(isintent_c): '&#varname#,'},
+        'callfortran': {l_or(isintent_c, isattr_value): '#varname#,', l_not(l_or(isintent_c, isattr_value)): '&#varname#,'},
         'return': {isintent_out: ',#varname#'},
         '_check': l_and(isscalar, l_not(iscomplex))
     }, {
@@ -1323,6 +1323,9 @@ def buildmodule(m, um):
         rd = dictappend(rd, ar)
 
     needs = cfuncs.get_needs()
+    # Add mapped definitions
+    needs['typedefs'] += [cvar for cvar in capi_maps.f2cmap_mapped #
+                          if cvar in typedef_need_dict.values()]
     code = {}
     for n in needs.keys():
         code[n] = []

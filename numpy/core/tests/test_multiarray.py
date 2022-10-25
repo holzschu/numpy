@@ -29,7 +29,7 @@ from numpy.testing import (
     assert_allclose, IS_PYPY, IS_PYSTON, HAS_REFCOUNT, assert_array_less,
     runstring, temppath, suppress_warnings, break_cycles,
     )
-from numpy.testing._private.utils import _no_tracing
+from numpy.testing._private.utils import requires_memory, _no_tracing
 from numpy.core.tests._locales import CommaDecimalPointLocale
 from numpy.lib.recfunctions import repack_fields
 
@@ -68,8 +68,8 @@ def _aligned_zeros(shape, dtype=float, order="C", align=None):
     # Note: slices producing 0-size arrays do not necessarily change
     # data pointer --- so we use and allocate size+1
     buf = buf[offset:offset+size+1][:-1]
+    buf.fill(0)
     data = np.ndarray(shape, dtype, buf, order=order)
-    data.fill(0)
     return data
 
 
@@ -1118,12 +1118,11 @@ class TestCreation:
                           shape=(max_bytes//itemsize + 1,), dtype=dtype)
 
     def _ragged_creation(self, seq):
-        # without dtype=object, the ragged object should raise
-        with assert_warns(np.VisibleDeprecationWarning):
+        # without dtype=object, the ragged object raises
+        with pytest.raises(ValueError, match=".*detected shape was"):
             a = np.array(seq)
-        b = np.array(seq, dtype=object)
-        assert_equal(a, b)
-        return b
+
+        return np.array(seq, dtype=object)
 
     def test_ragged_ndim_object(self):
         # Lists of mismatching depths are treated as object arrays
@@ -1171,6 +1170,20 @@ class TestCreation:
         a = np.array([[[Decimal(1)]]])
         a = np.array([1, Decimal(1)])
         a = np.array([[1], [Decimal(1)]])
+
+    @pytest.mark.parametrize("dtype", [object, "O,O", "O,(3)O", "(2,3)O"])
+    @pytest.mark.parametrize("function", [
+            np.ndarray, np.empty,
+            lambda shape, dtype: np.empty_like(np.empty(shape, dtype=dtype))])
+    def test_object_initialized_to_None(self, function, dtype):
+        # NumPy has support for object fields to be NULL (meaning None)
+        # but generally, we should always fill with the proper None, and
+        # downstream may rely on that.  (For fully initialized arrays!)
+        arr = function(3, dtype=dtype)
+        # We expect a fill value of None, which is not NULL:
+        expected = np.array(None).tobytes()
+        expected = expected * (arr.nbytes // len(expected))
+        assert arr.tobytes() == expected
 
 class TestStructured:
     def test_subarray_field_access(self):
@@ -1244,6 +1257,18 @@ class TestStructured:
         # The main importance is that it does not return True:
         with pytest.raises(TypeError):
             x == y
+ 
+    def test_empty_structured_array_comparison(self):
+        # Check that comparison works on empty arrays with nontrivially 
+        # shaped fields
+        a = np.zeros(0, [('a', '<f8', (1, 1))])
+        assert_equal(a, a)
+        a = np.zeros(0, [('a', '<f8', (1,))])
+        assert_equal(a, a)
+        a = np.zeros((0, 0), [('a', '<f8', (1, 1))])
+        assert_equal(a, a)
+        a = np.zeros((1, 0, 1), [('a', '<f8', (1, 1))])
+        assert_equal(a, a)
 
     def test_structured_comparisons_with_promotion(self):
         # Check that structured arrays can be compared so long as their
@@ -2207,6 +2232,28 @@ class TestMethods:
         assert_c(a.copy('C'))
         assert_fortran(a.copy('F'))
         assert_c(a.copy('A'))
+    
+    @pytest.mark.parametrize("dtype", ['O', np.int32, 'i,O'])
+    def test__deepcopy__(self, dtype):
+        # Force the entry of NULLs into array
+        a = np.empty(4, dtype=dtype)
+        ctypes.memset(a.ctypes.data, 0, a.nbytes)
+
+        # Ensure no error is raised, see gh-21833
+        b = a.__deepcopy__({})
+
+        a[0] = 42
+        with pytest.raises(AssertionError):
+            assert_array_equal(a, b)
+
+    def test__deepcopy__catches_failure(self):
+        class MyObj:
+            def __deepcopy__(self, *args, **kwargs):
+                raise RuntimeError
+
+        arr = np.array([1, MyObj(), 3], dtype='O')
+        with pytest.raises(RuntimeError):
+            arr.__deepcopy__({})
 
     def test_sort_order(self):
         # Test sorting an array with fields
@@ -2388,23 +2435,32 @@ class TestMethods:
         assert_raises(ValueError, d.sort, kind=k)
         assert_raises(ValueError, d.argsort, kind=k)
 
-    def test_searchsorted(self):
-        # test for floats and complex containing nans. The logic is the
-        # same for all float types so only test double types for now.
-        # The search sorted routines use the compare functions for the
-        # array type, so this checks if that is consistent with the sort
-        # order.
-
-        # check double
-        a = np.array([0, 1, np.nan])
-        msg = "Test real searchsorted with nans, side='l'"
+    @pytest.mark.parametrize('a', [
+        np.array([0, 1, np.nan], dtype=np.float16),
+        np.array([0, 1, np.nan], dtype=np.float32),
+        np.array([0, 1, np.nan]),
+    ])
+    def test_searchsorted_floats(self, a):
+        # test for floats arrays containing nans. Explicitly test 
+        # half, single, and double precision floats to verify that
+        # the NaN-handling is correct.
+        msg = "Test real (%s) searchsorted with nans, side='l'" % a.dtype
         b = a.searchsorted(a, side='left')
         assert_equal(b, np.arange(3), msg)
-        msg = "Test real searchsorted with nans, side='r'"
+        msg = "Test real (%s) searchsorted with nans, side='r'" % a.dtype
         b = a.searchsorted(a, side='right')
         assert_equal(b, np.arange(1, 4), msg)
         # check keyword arguments
         a.searchsorted(v=1)
+        x = np.array([0, 1, np.nan], dtype='float32')
+        y = np.searchsorted(x, x[-1])
+        assert_equal(y, 2)
+
+    def test_searchsorted_complex(self):
+        # test for complex arrays containing nans. 
+        # The search sorted routines use the compare functions for the
+        # array type, so this checks if that is consistent with the sort
+        # order.
         # check double complex
         a = np.zeros(9, dtype=np.complex128)
         a.real += [0, 0, 1, 1, 0, 1, np.nan, np.nan, np.nan]
@@ -2423,7 +2479,8 @@ class TestMethods:
         a = np.array([0, 128], dtype='>i4')
         b = a.searchsorted(np.array(128, dtype='>i4'))
         assert_equal(b, 1, msg)
-
+        
+    def test_searchsorted_n_elements(self):
         # Check 0 elements
         a = np.ones(0)
         b = a.searchsorted([0, 1, 2], 'left')
@@ -2443,6 +2500,7 @@ class TestMethods:
         b = a.searchsorted([0, 1, 2], 'right')
         assert_equal(b, [0, 2, 2])
 
+    def test_searchsorted_unaligned_array(self):
         # Test searching unaligned array
         a = np.arange(10)
         aligned = np.empty(a.itemsize * a.size + 1, 'uint8')
@@ -2459,6 +2517,7 @@ class TestMethods:
         b = a.searchsorted(unaligned, 'right')
         assert_equal(b, a + 1)
 
+    def test_searchsorted_resetting(self):
         # Test smart resetting of binsearch indices
         a = np.arange(5)
         b = a.searchsorted([6, 5, 4], 'left')
@@ -2466,6 +2525,7 @@ class TestMethods:
         b = a.searchsorted([6, 5, 4], 'right')
         assert_equal(b, [5, 5, 5])
 
+    def test_searchsorted_type_specific(self):
         # Test all type specific binary search functions
         types = ''.join((np.typecodes['AllInteger'], np.typecodes['AllFloat'],
                          np.typecodes['Datetime'], '?O'))
@@ -4553,7 +4613,7 @@ class TestArgmax:
             ([np.nan, 0, 1, 2, 3], 0),
             ([np.nan, 0, np.nan, 2, 3], 0),
             # To hit the tail of SIMD multi-level(x4, x1) inner loops
-            # on varient SIMD widthes
+            # on variant SIMD widthes
             ([1] * (2*5-1) + [np.nan], 2*5-1),
             ([1] * (4*5-1) + [np.nan], 4*5-1),
             ([1] * (8*5-1) + [np.nan], 8*5-1),
@@ -4696,7 +4756,7 @@ class TestArgmin:
             ([np.nan, 0, 1, 2, 3], 0),
             ([np.nan, 0, np.nan, 2, 3], 0),
             # To hit the tail of SIMD multi-level(x4, x1) inner loops
-            # on varient SIMD widthes
+            # on variant SIMD widthes
             ([1] * (2*5-1) + [np.nan], 2*5-1),
             ([1] * (4*5-1) + [np.nan], 4*5-1),
             ([1] * (8*5-1) + [np.nan], 8*5-1),
@@ -4959,6 +5019,8 @@ class TestPutmask:
             for types in np.sctypes.values():
                 for T in types:
                     if T not in unchecked_types:
+                        if val < 0 and np.dtype(T).kind == "u":
+                            val = np.iinfo(T).max - 99
                         self.tst_basic(x.copy().astype(T), T, mask, val)
 
             # Also test string of a length which uses an untypical length
@@ -5457,10 +5519,12 @@ class TestIO:
 
     @pytest.mark.slow  # takes > 1 minute on mechanical hard drive
     def test_big_binary(self):
-        """Test workarounds for 32-bit limited fwrite, fseek, and ftell
-        calls in windows. These normally would hang doing something like this.
-        See http://projects.scipy.org/numpy/ticket/1660"""
-        if sys.platform != 'win32':
+        """Test workarounds for 32-bit limit for MSVC fwrite, fseek, and ftell
+
+        These normally would hang doing something like this.
+        See : https://github.com/numpy/numpy/issues/2256
+        """
+        if sys.platform != 'win32' or '[GCC ' in sys.version:
             return
         try:
             # before workarounds, only up to 2**32-1 worked
@@ -6656,6 +6720,15 @@ class TestDot:
             # Strides in A cols and X
             assert_dot_close(A_f_12, X_f_2, desired)
 
+    @pytest.mark.slow
+    @pytest.mark.parametrize("dtype", [np.float64, np.complex128])
+    @requires_memory(free_bytes=18e9)  # complex case needs 18GiB+
+    def test_huge_vectordot(self, dtype):
+        # Large vector multiplications are chunked with 32bit BLAS
+        # Test that the chunking does the right thing, see also gh-22262
+        data = np.ones(2**30+100, dtype=dtype)
+        res = np.dot(data, data)
+        assert res == 2**30+100
 
 
 class MatmulCommon:
@@ -7162,9 +7235,8 @@ class TestInner:
                    [2630, 2910, 3190]],
 
                   [[2198, 2542, 2886],
-                   [3230, 3574, 3918]]]],
-                dtype=dt
-            )
+                   [3230, 3574, 3918]]]]
+            ).astype(dt)
             assert_equal(np.inner(a, b), desired)
             assert_equal(np.inner(b, a).transpose(2,3,0,1), desired)
 

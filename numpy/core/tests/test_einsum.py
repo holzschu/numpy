@@ -239,7 +239,9 @@ class TestEinsum:
             assert_(b.base is a)
             assert_equal(b, a.swapaxes(0, 1))
 
+    @np._no_nep50_warning()
     def check_einsum_sums(self, dtype, do_opt=False):
+        dtype = np.dtype(dtype)
         # Check various sums.  Does many sizes to exercise unrolled loops.
 
         # sum(a, axis=-1)
@@ -441,9 +443,11 @@ class TestEinsum:
                              axes=([1, 0], [0, 1])).astype(dtype))
 
         # logical_and(logical_and(a!=0, b!=0), c!=0)
-        a = np.array([1,   3,   -2,   0,   12,  13,   0,   1], dtype=dtype)
-        b = np.array([0,   3.5, 0.,   -2,  0,   1,    3,   12], dtype=dtype)
+        neg_val = -2 if dtype.kind != "u" else np.iinfo(dtype).max - 1
+        a = np.array([1,   3,   neg_val, 0,  12,  13,   0,   1], dtype=dtype)
+        b = np.array([0,   3.5, 0., neg_val,  0,   1,    3,   12], dtype=dtype)
         c = np.array([True, True, False, True, True, False, True, True])
+
         assert_equal(np.einsum("i,i,i->i", a, b, c,
                      dtype='?', casting='unsafe', optimize=do_opt),
                      np.logical_and(np.logical_and(a != 0, b != 0), c != 0))
@@ -1088,6 +1092,32 @@ class TestEinsumPath:
         noopt = np.einsum(*path_test, optimize=False)
         opt = np.einsum(*path_test, optimize=exp_path)
         assert_almost_equal(noopt, opt)
+
+    def test_path_type_input_internal_trace(self):
+        #gh-20962
+        path_test = self.build_operands('cab,cdd->ab')
+        exp_path = ['einsum_path', (1,), (0, 1)]
+
+        path, path_str = np.einsum_path(*path_test, optimize=exp_path)
+        self.assert_path_equal(path, exp_path)
+
+        # Double check einsum works on the input path
+        noopt = np.einsum(*path_test, optimize=False)
+        opt = np.einsum(*path_test, optimize=exp_path)
+        assert_almost_equal(noopt, opt)
+
+    def test_path_type_input_invalid(self):
+        path_test = self.build_operands('ab,bc,cd,de->ae')
+        exp_path = ['einsum_path', (2, 3), (0, 1)]
+        assert_raises(RuntimeError, np.einsum, *path_test, optimize=exp_path)
+        assert_raises(
+            RuntimeError, np.einsum_path, *path_test, optimize=exp_path)
+
+        path_test = self.build_operands('a,a,a->a')
+        exp_path = ['einsum_path', (1,), (0, 1)]
+        assert_raises(RuntimeError, np.einsum, *path_test, optimize=exp_path)
+        assert_raises(
+            RuntimeError, np.einsum_path, *path_test, optimize=exp_path)
 
     def test_spaces(self):
         #gh-10794

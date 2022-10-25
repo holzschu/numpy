@@ -1084,11 +1084,30 @@ add_newdoc('numpy.core.multiarray', 'ascontiguousarray',
 
     Examples
     --------
-    >>> x = np.arange(6).reshape(2,3)
-    >>> np.ascontiguousarray(x, dtype=np.float32)
-    array([[0., 1., 2.],
-           [3., 4., 5.]], dtype=float32)
+    Starting with a Fortran-contiguous array:
+
+    >>> x = np.ones((2, 3), order='F')
+    >>> x.flags['F_CONTIGUOUS']
+    True
+
+    Calling ``ascontiguousarray`` makes a C-contiguous copy:
+
+    >>> y = np.ascontiguousarray(x)
+    >>> y.flags['C_CONTIGUOUS']
+    True
+    >>> np.may_share_memory(x, y)
+    False
+
+    Now, starting with a C-contiguous array:
+
+    >>> x = np.ones((2, 3), order='C')
     >>> x.flags['C_CONTIGUOUS']
+    True
+
+    Then, calling ``ascontiguousarray`` returns the same object:
+
+    >>> y = np.ascontiguousarray(x)
+    >>> x is y
     True
 
     Note: This function returns an array with at least one-dimension (1-d)
@@ -1130,11 +1149,30 @@ add_newdoc('numpy.core.multiarray', 'asfortranarray',
 
     Examples
     --------
-    >>> x = np.arange(6).reshape(2,3)
+    Starting with a C-contiguous array:
+
+    >>> x = np.ones((2, 3), order='C')
+    >>> x.flags['C_CONTIGUOUS']
+    True
+
+    Calling ``asfortranarray`` makes a Fortran-contiguous copy:
+
     >>> y = np.asfortranarray(x)
-    >>> x.flags['F_CONTIGUOUS']
-    False
     >>> y.flags['F_CONTIGUOUS']
+    True
+    >>> np.may_share_memory(x, y)
+    False
+
+    Now, starting with a Fortran-contiguous array:
+
+    >>> x = np.ones((2, 3), order='F')
+    >>> x.flags['F_CONTIGUOUS']
+    True
+
+    Then, calling ``asfortranarray`` returns the same object:
+
+    >>> y = np.asfortranarray(x)
+    >>> x is y
     True
 
     Note: This function returns an array with at least one-dimension (1-d)
@@ -1316,8 +1354,7 @@ add_newdoc('numpy.core.multiarray', 'fromstring',
             decimal numbers, an operation which is better spelt
             ``frombuffer(string, dtype, count)``. If `string` contains unicode
             text, the binary mode of `fromstring` will first encode it into
-            bytes using either utf-8 (python 3) or the default encoding
-            (python 2), neither of which produce sane results.
+            bytes using utf-8, which will not produce sane results.
 
     ${ARRAY_FUNCTION_LIKE}
 
@@ -1563,6 +1600,12 @@ add_newdoc('numpy.core.multiarray', 'frombuffer',
     -------
     out : ndarray
 
+    See also
+    --------
+    ndarray.tobytes
+        Inverse of this operation, construct Python bytes from the raw data
+        bytes in the array.
+
     Notes
     -----
     If the buffer has data that is not in machine byte-order, this should
@@ -1630,7 +1673,14 @@ add_newdoc('numpy.core.multiarray', 'from_dlpack',
     """)
 
 add_newdoc('numpy.core', 'fastCopyAndTranspose',
-    """_fastCopyAndTranspose(a)""")
+    """
+    fastCopyAndTranspose(a)
+
+    .. deprecated:: 1.24
+
+       fastCopyAndTranspose is deprecated and will be removed. Use the copy and
+       transpose methods instead, e.g. ``arr.T.copy()``
+    """)
 
 add_newdoc('numpy.core.multiarray', 'correlate',
     """cross_correlate(a,v, mode=0)""")
@@ -1712,9 +1762,9 @@ add_newdoc('numpy.core.multiarray', 'arange',
     In such cases, the use of `numpy.linspace` should be preferred.
 
     The built-in :py:class:`range` generates :std:doc:`Python built-in integers
-    that have arbitrary size <c-api/long>`, while `numpy.arange` produces
-    `numpy.int32` or `numpy.int64` numbers. This may result in incorrect
-    results for large integer values::
+    that have arbitrary size <python:c-api/long>`, while `numpy.arange`
+    produces `numpy.int32` or `numpy.int64` numbers. This may result in
+    incorrect results for large integer values::
 
       >>> power = 40
       >>> modulo = 10000
@@ -2842,24 +2892,25 @@ add_newdoc('numpy.core.multiarray', 'ndarray', ('strides',
 
 add_newdoc('numpy.core.multiarray', 'ndarray', ('T',
     """
-    The transposed array.
+    View of the transposed array.
 
     Same as ``self.transpose()``.
 
     Examples
     --------
-    >>> x = np.array([[1.,2.],[3.,4.]])
-    >>> x
-    array([[ 1.,  2.],
-           [ 3.,  4.]])
-    >>> x.T
-    array([[ 1.,  3.],
-           [ 2.,  4.]])
-    >>> x = np.array([1.,2.,3.,4.])
-    >>> x
-    array([ 1.,  2.,  3.,  4.])
-    >>> x.T
-    array([ 1.,  2.,  3.,  4.])
+    >>> a = np.array([[1, 2], [3, 4]])
+    >>> a
+    array([[1, 2],
+           [3, 4]])
+    >>> a.T
+    array([[1, 3],
+           [2, 4]])
+
+    >>> a = np.array([1, 2, 3, 4])
+    >>> a
+    array([1, 2, 3, 4])
+    >>> a.T
+    array([1, 2, 3, 4])
 
     See Also
     --------
@@ -3436,6 +3487,24 @@ add_newdoc('numpy.core.multiarray', 'ndarray', ('fill',
     >>> a.fill(1)
     >>> a
     array([1.,  1.])
+
+    Fill expects a scalar value and always behaves the same as assigning
+    to a single array element.  The following is a rare example where this
+    distinction is important:
+
+    >>> a = np.array([None, None], dtype=object)
+    >>> a[0] = np.array(3)
+    >>> a
+    array([array(3), None], dtype=object)
+    >>> a.fill(np.array(3))
+    >>> a
+    array([array(3), array(3)], dtype=object)
+
+    Where other forms of assignments will unpack the array being assigned:
+
+    >>> a[...] = np.array(3)
+    >>> a
+    array([3, 3], dtype=object)
 
     """))
 
@@ -4402,6 +4471,12 @@ add_newdoc('numpy.core.multiarray', 'ndarray', ('tobytes', """
     s : bytes
         Python bytes exhibiting a copy of `a`'s raw data.
 
+    See also
+    --------
+    frombuffer
+        Inverse of this operation, construct a 1-dimensional array from Python
+        bytes.
+
     Examples
     --------
     >>> x = np.array([[0, 1], [2, 3]], dtype='<u2')
@@ -4447,15 +4522,7 @@ add_newdoc('numpy.core.multiarray', 'ndarray', ('transpose',
 
     Returns a view of the array with axes transposed.
 
-    For a 1-D array this has no effect, as a transposed vector is simply the
-    same vector. To convert a 1-D array into a 2D column vector, an additional
-    dimension must be added. `np.atleast2d(a).T` achieves this, as does
-    `a[:, np.newaxis]`.
-    For a 2-D array, this is a standard matrix transpose.
-    For an n-D array, if axes are given, their order indicates how the
-    axes are permuted (see Examples). If axes are not provided and
-    ``a.shape = (i[0], i[1], ... i[n-2], i[n-1])``, then
-    ``a.transpose().shape = (i[n-1], i[n-2], ... i[1], i[0])``.
+    Refer to `numpy.transpose` for full documentation.
 
     Parameters
     ----------
@@ -4463,20 +4530,20 @@ add_newdoc('numpy.core.multiarray', 'ndarray', ('transpose',
 
      * None or no argument: reverses the order of the axes.
 
-     * tuple of ints: `i` in the `j`-th place in the tuple means `a`'s
-       `i`-th axis becomes `a.transpose()`'s `j`-th axis.
+     * tuple of ints: `i` in the `j`-th place in the tuple means that the
+       array's `i`-th axis becomes the transposed array's `j`-th axis.
 
      * `n` ints: same as an n-tuple of the same ints (this form is
-       intended simply as a "convenience" alternative to the tuple form)
+       intended simply as a "convenience" alternative to the tuple form).
 
     Returns
     -------
-    out : ndarray
-        View of `a`, with axes suitably permuted.
+    p : ndarray
+        View of the array with its axes suitably permuted.
 
     See Also
     --------
-    transpose : Equivalent function
+    transpose : Equivalent function.
     ndarray.T : Array property returning the array transposed.
     ndarray.reshape : Give a new shape to an array without changing its data.
 
@@ -4495,6 +4562,12 @@ add_newdoc('numpy.core.multiarray', 'ndarray', ('transpose',
     >>> a.transpose(1, 0)
     array([[1, 3],
            [2, 4]])
+
+    >>> a = np.array([1, 2, 3, 4])
+    >>> a
+    array([1, 2, 3, 4])
+    >>> a.transpose()
+    array([1, 2, 3, 4])
 
     """))
 

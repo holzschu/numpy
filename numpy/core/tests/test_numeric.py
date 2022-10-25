@@ -2824,12 +2824,11 @@ class TestLikeFuncs:
     def compare_array_value(self, dz, value, fill_value):
         if value is not None:
             if fill_value:
-                try:
-                    z = dz.dtype.type(value)
-                except OverflowError:
-                    pass
-                else:
-                    assert_(np.all(dz == z))
+                # Conversion is close to what np.full_like uses
+                # but we  may want to convert directly in the future
+                # which may result in errors (where this does not).
+                z = np.array(value).astype(dz.dtype)
+                assert_(np.all(dz == z))
             else:
                 assert_(np.all(dz == value))
 
@@ -2939,7 +2938,9 @@ class TestLikeFuncs:
         self.check_like_function(np.full_like, 1, True)
         self.check_like_function(np.full_like, 1000, True)
         self.check_like_function(np.full_like, 123.456, True)
-        self.check_like_function(np.full_like, np.inf, True)
+        # Inf to integer casts cause invalid-value errors: ignore them.
+        with np.errstate(invalid="ignore"):
+            self.check_like_function(np.full_like, np.inf, True)
 
     @pytest.mark.parametrize('likefunc', [np.empty_like, np.full_like,
                                           np.zeros_like, np.ones_like])
@@ -3380,6 +3381,14 @@ class TestCross:
         u = np.ones((3, 4, 2))
         for axisc in range(-2, 2):
             assert_equal(np.cross(u, u, axisc=axisc).shape, (3, 4))
+
+    def test_uint8_int32_mixed_dtypes(self):
+        # regression test for gh-19138
+        u = np.array([[195, 8, 9]], np.uint8)
+        v = np.array([250, 166, 68], np.int32)
+        z = np.array([[950, 11010, -30370]], dtype=np.int32)
+        assert_equal(np.cross(v, u), z)
+        assert_equal(np.cross(u, v), -z)
 
 
 def test_outer_out_param():

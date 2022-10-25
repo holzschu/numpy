@@ -11,7 +11,7 @@ from numpy.core._rational_tests import rational
 from numpy.core._multiarray_tests import create_custom_field_dtype
 from numpy.testing import (
     assert_, assert_equal, assert_array_equal, assert_raises, HAS_REFCOUNT,
-    IS_PYSTON)
+    IS_PYSTON, _OLD_PROMOTION)
 from numpy.compat import pickle
 from itertools import permutations
 import random
@@ -328,8 +328,8 @@ class TestRecord:
         dt2 = np.dtype({'names':['f2', 'f0', 'f1'],
                         'formats':['<u4', '<u2', '<u2'],
                         'offsets':[4, 0, 2]}, align=True)
-        vals = [(0, 1, 2), (3, -1, 4)]
-        vals2 = [(0, 1, 2), (3, -1, 4)]
+        vals = [(0, 1, 2), (3, 2**15-1, 4)]
+        vals2 = [(0, 1, 2), (3, 2**15-1, 4)]
         a = np.array(vals, dt)
         b = np.array(vals2, dt2)
         assert_equal(a.astype(dt2), b)
@@ -649,6 +649,29 @@ class TestSubarray:
         assert dt == np.dtype([])
         dt = np.dtype({"names": [], "formats": [], "itemsize": 0}, align=True)
         assert dt == np.dtype([])
+
+    def test_subarray_base_item(self):
+        arr = np.ones(3, dtype=[("f", "i", 3)])
+        # Extracting the field "absorbs" the subarray into a view:
+        assert arr["f"].base is arr
+        # Extract the structured item, and then check the tuple component:
+        item = arr.item(0)
+        assert type(item) is tuple and len(item) == 1
+        assert item[0].base is arr
+
+    def test_subarray_cast_copies(self):
+        # Older versions of NumPy did NOT copy, but they got the ownership
+        # wrong (not actually knowing the correct base!).  Versions since 1.21
+        # (I think) crashed fairly reliable.  This defines the correct behavior
+        # as a copy.  Keeping the ownership would be possible (but harder)
+        arr = np.ones(3, dtype=[("f", "i", 3)])
+        cast = arr.astype(object)
+        for fields in cast:
+            assert type(fields) == tuple and len(fields) == 1
+            subarr = fields[0]
+            assert subarr.base is None
+            assert subarr.flags.owndata
+
 
 def iter_struct_object_dtypes():
     """
@@ -1288,25 +1311,34 @@ class TestPromotion:
     """Test cases related to more complex DType promotions.  Further promotion
     tests are defined in `test_numeric.py`
     """
-    @pytest.mark.parametrize(["other", "expected"],
-            [(2**16-1, np.complex64),
-             (2**32-1, np.complex128),
-             (np.float16(2), np.complex64),
-             (np.float32(2), np.complex64),
-             (np.longdouble(2), np.complex64),
+    @np._no_nep50_warning()
+    @pytest.mark.parametrize(["other", "expected", "expected_weak"],
+            [(2**16-1, np.complex64, None),
+             (2**32-1, np.complex128, np.complex64),
+             (np.float16(2), np.complex64, None),
+             (np.float32(2), np.complex64, None),
+             (np.longdouble(2), np.complex64, np.clongdouble),
              # Base of the double value to sidestep any rounding issues:
-             (np.longdouble(np.nextafter(1.7e308, 0.)), np.complex128),
+             (np.longdouble(np.nextafter(1.7e308, 0.)),
+                  np.complex128, np.clongdouble),
              # Additionally use "nextafter" so the cast can't round down:
-             (np.longdouble(np.nextafter(1.7e308, np.inf)), np.clongdouble),
+             (np.longdouble(np.nextafter(1.7e308, np.inf)),
+                  np.clongdouble, None),
              # repeat for complex scalars:
-             (np.complex64(2), np.complex64),
-             (np.clongdouble(2), np.complex64),
+             (np.complex64(2), np.complex64, None),
+             (np.clongdouble(2), np.complex64, np.clongdouble),
              # Base of the double value to sidestep any rounding issues:
-             (np.clongdouble(np.nextafter(1.7e308, 0.) * 1j), np.complex128),
+             (np.clongdouble(np.nextafter(1.7e308, 0.) * 1j),
+                  np.complex128, np.clongdouble),
              # Additionally use "nextafter" so the cast can't round down:
-             (np.clongdouble(np.nextafter(1.7e308, np.inf)), np.clongdouble),
+             (np.clongdouble(np.nextafter(1.7e308, np.inf)),
+                  np.clongdouble, None),
              ])
-    def test_complex_other_value_based(self, other, expected):
+    def test_complex_other_value_based(self,
+            weak_promotion, other, expected, expected_weak):
+        if weak_promotion and expected_weak is not None:
+            expected = expected_weak
+
         # This would change if we modify the value based promotion
         min_complex = np.dtype(np.complex64)
 
@@ -1339,22 +1371,40 @@ class TestPromotion:
 
     def test_complex_pyscalar_promote_rational(self):
         with pytest.raises(TypeError,
-                match=r".* do not have a common DType"):
+                match=r".* no common DType exists for the given inputs"):
             np.result_type(1j, rational)
 
         with pytest.raises(TypeError,
                 match=r".* no common DType exists for the given inputs"):
             np.result_type(1j, rational(1, 2))
 
+    @pytest.mark.parametrize("val", [2, 2**32, 2**63, 2**64, 2*100])
+    def test_python_integer_promotion(self, val):
+        # If we only path scalars (mainly python ones!), the result must take
+        # into account that the integer may be considered int32, int64, uint64,
+        # or object depending on the input value.  So test those paths!
+        expected_dtype = np.result_type(np.array(val).dtype, np.array(0).dtype)
+        assert np.result_type(val, 0) == expected_dtype
+        # For completeness sake, also check with a NumPy scalar as second arg:
+        assert np.result_type(val, np.int8(0)) == expected_dtype
+
     @pytest.mark.parametrize(["other", "expected"],
             [(1, rational), (1., np.float64)])
-    def test_float_int_pyscalar_promote_rational(self, other, expected):
+    @np._no_nep50_warning()
+    def test_float_int_pyscalar_promote_rational(
+            self, weak_promotion, other, expected):
         # Note that rationals are a bit akward as they promote with float64
         # or default ints, but not float16 or uint8/int8 (which looks
-        # inconsistent here)
-        with pytest.raises(TypeError,
-                match=r".* do not have a common DType"):
-            np.result_type(other, rational)
+        # inconsistent here).  The new promotion fixes this (partially?)
+        if not weak_promotion and type(other) == float:
+            # The float version, checks float16 in the legacy path, which fails
+            # the integer version seems to check int8 (also), so it can
+            # pass.
+            with pytest.raises(TypeError,
+                    match=r".* do not have a common DType"):
+                np.result_type(other, rational)
+        else:
+            assert np.result_type(other, rational) == expected
 
         assert np.result_type(other, rational(1, 2)) == expected
 

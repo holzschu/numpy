@@ -25,7 +25,7 @@ from ._pcg64 import PCG64
 from numpy.random cimport bitgen_t
 from ._common cimport (POISSON_LAM_MAX, CONS_POSITIVE, CONS_NONE,
             CONS_NON_NEGATIVE, CONS_BOUNDED_0_1, CONS_BOUNDED_GT_0_1,
-            CONS_GT_1, CONS_POSITIVE_NOT_NAN, CONS_POISSON,
+            CONS_BOUNDED_LT_0_1, CONS_GT_1, CONS_POSITIVE_NOT_NAN, CONS_POISSON,
             double_fill, cont, kahan_sum, cont_broadcast_3, float_fill, cont_f,
             check_array_constraint, check_constraint, disc, discrete_broadcast_iii,
             validate_output_shape
@@ -220,8 +220,11 @@ cdef class Generator:
         self.bit_generator.state = state
 
     def __reduce__(self):
+        ctor, name_tpl, state = self._bit_generator.__reduce__()
+
         from ._pickle import __generator_ctor
-        return __generator_ctor, (self.bit_generator.state['bit_generator'],), self.bit_generator.state
+        # Requirements of __generator_ctor are (name, ctor)
+        return __generator_ctor, (name_tpl[0], ctor), state
 
     @property
     def bit_generator(self):
@@ -242,10 +245,10 @@ cdef class Generator:
         Return random floats in the half-open interval [0.0, 1.0).
 
         Results are from the "continuous uniform" distribution over the
-        stated interval.  To sample :math:`Unif[a, b), b > a` multiply
-        the output of `random` by `(b-a)` and add `a`::
+        stated interval.  To sample :math:`Unif[a, b), b > a` use `uniform`
+        or multiply the output of `random` by ``(b - a)`` and add ``a``::
 
-          (b - a) * random() + a
+            (b - a) * random() + a
 
         Parameters
         ----------
@@ -266,6 +269,10 @@ cdef class Generator:
         out : float or ndarray of floats
             Array of random floats of shape `size` (unless ``size=None``, in which
             case a single float is returned).
+
+        See Also
+        --------
+        uniform : Draw samples from the parameterized uniform distribution.
 
         Examples
         --------
@@ -1001,7 +1008,8 @@ cdef class Generator:
 
         Notes
         -----
-        For random samples from :math:`N(\\mu, \\sigma^2)`, use one of::
+        For random samples from the normal distribution with mean ``mu`` and
+        standard deviation ``sigma``, use one of::
 
             mu + sigma * rng.standard_normal(size=...)
             rng.normal(mu, sigma, size=...)
@@ -1022,7 +1030,8 @@ cdef class Generator:
         >>> s.shape
         (3, 4, 2)
 
-        Two-by-four array of samples from :math:`N(3, 6.25)`:
+        Two-by-four array of samples from the normal distribution with
+        mean 3 and standard deviation 2.5:
 
         >>> 3 + 2.5 * rng.standard_normal(size=(2, 4))
         array([[-4.49401501,  4.00950034, -1.81814867,  7.29718677],   # random
@@ -1126,7 +1135,8 @@ cdef class Generator:
         ...          linewidth=2, color='r')
         >>> plt.show()
 
-        Two-by-four array of samples from N(3, 6.25):
+        Two-by-four array of samples from the normal distribution with
+        mean 3 and standard deviation 2.5:
 
         >>> np.random.default_rng().normal(3, 2.5, size=(2, 4))
         array([[-4.49401501,  4.00950034, -1.81814867,  7.29718677],   # random
@@ -3004,7 +3014,7 @@ cdef class Generator:
         intermediate distribution exceeding the max acceptable value of the 
         ``Generator.poisson`` method. This happens when :math:`p` is too low 
         (a lot of failures happen for every success) and :math:`n` is too big (
-        a lot of sucesses are allowed).
+        a lot of successes are allowed).
         Therefore, the :math:`n` and :math:`p` values must satisfy the constraint:
 
         .. math:: n\\frac{1-p}{p}+10n\\sqrt{n}\\frac{1-p}{p}<2^{63}-1-10\\sqrt{2^{63}-1},
@@ -3437,12 +3447,12 @@ cdef class Generator:
         Draw samples from a logarithmic series distribution.
 
         Samples are drawn from a log series distribution with specified
-        shape parameter, 0 < ``p`` < 1.
+        shape parameter, 0 <= ``p`` < 1.
 
         Parameters
         ----------
         p : float or array_like of floats
-            Shape parameter for the distribution.  Must be in the range (0, 1).
+            Shape parameter for the distribution.  Must be in the range [0, 1).
         size : int or tuple of ints, optional
             Output shape.  If the given shape is, e.g., ``(m, n, k)``, then
             ``m * n * k`` samples are drawn.  If size is ``None`` (default),
@@ -3506,7 +3516,7 @@ cdef class Generator:
 
         """
         return disc(&random_logseries, &self._bitgen, size, self.lock, 1, 0,
-                 p, 'p', CONS_BOUNDED_0_1,
+                 p, 'p', CONS_BOUNDED_LT_0_1,
                  0.0, '', CONS_NONE,
                  0.0, '', CONS_NONE)
 
@@ -3660,6 +3670,11 @@ cdef class Generator:
         # Check preconditions on arguments
         mean = np.array(mean)
         cov = np.array(cov)
+
+        if (np.issubdtype(mean.dtype, np.complexfloating) or
+                np.issubdtype(cov.dtype, np.complexfloating)):
+            raise TypeError("mean and cov must not be complex")
+
         if size is None:
             shape = []
         elif isinstance(size, (int, long, np.integer)):
@@ -3721,10 +3736,10 @@ cdef class Generator:
                 psd = not np.any(s < -tol)
             if not psd:
                 if check_valid == 'warn':
-                    warnings.warn("covariance is not positive-semidefinite.",
+                    warnings.warn("covariance is not symmetric positive-semidefinite.",
                                   RuntimeWarning)
                 else:
-                    raise ValueError("covariance is not positive-semidefinite.")
+                    raise ValueError("covariance is not symmetric positive-semidefinite.")
 
         if method == 'cholesky':
             _factor = l
@@ -4418,7 +4433,7 @@ cdef class Generator:
             is shuffled independently of the others.  If `axis` is
             None, the flattened array is shuffled.
         out : ndarray, optional
-            If given, this is the destinaton of the shuffled array.
+            If given, this is the destination of the shuffled array.
             If `out` is None, a shuffled copy of the array is returned.
 
         Returns
@@ -4764,6 +4779,7 @@ cdef class Generator:
         return arr[tuple(slices)]
 
 
+@cython.embedsignature(True)
 def default_rng(seed=None):
     """Construct a new Generator with the default BitGenerator (PCG64).
 

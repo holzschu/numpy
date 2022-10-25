@@ -152,7 +152,7 @@ and its sub-types).
 
 .. c:function:: int PyArray_FinalizeFunc(PyArrayObject* arr, PyObject* obj)
 
-    The function pointed to by the CObject
+    The function pointed to by the :c:type:`PyCapsule`
     :obj:`~numpy.class.__array_finalize__`.
     The first argument is the newly created sub-type. The second argument
     (if not NULL) is the "parent" array (if the array was created using
@@ -162,7 +162,7 @@ and its sub-types).
 
 
 Data access
-^^^^^^^^^^^
+~~~~~~~~~~~
 
 These functions and macros provide easy access to elements of the
 ndarray from C. These work for all arrays. You may need to take care
@@ -208,7 +208,7 @@ Creating arrays
 
 
 From scratch
-^^^^^^^^^^^^
+~~~~~~~~~~~~
 
 .. c:function:: PyObject* PyArray_NewFromDescr( \
         PyTypeObject* subtype, PyArray_Descr* descr, int nd, npy_intp const* dims, \
@@ -404,7 +404,7 @@ From scratch
     to another value.
 
 From other objects
-^^^^^^^^^^^^^^^^^^
+~~~~~~~~~~~~~~~~~~
 
 .. c:function:: PyObject* PyArray_FromAny( \
         PyObject* op, PyArray_Descr* dtype, int min_depth, int max_depth, \
@@ -805,7 +805,7 @@ Dealing with types
 
 
 General check of Python Type
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 .. c:function:: int PyArray_Check(PyObject *op)
 
@@ -877,7 +877,7 @@ General check of Python Type
 
 
 Data-type checking
-^^^^^^^^^^^^^^^^^^
+~~~~~~~~~~~~~~~~~~
 
 For the typenum macros, the argument is an integer representing an
 enumerated array data type. For the array type checking macros the
@@ -1048,7 +1048,7 @@ argument must be a :c:expr:`PyObject *` that can be directly interpreted as a
 
 
 Converting data types
-^^^^^^^^^^^^^^^^^^^^^
+~~~~~~~~~~~~~~~~~~~~~
 
 .. c:function:: PyObject* PyArray_Cast(PyArrayObject* arr, int typenum)
 
@@ -1268,7 +1268,7 @@ Converting data types
 
 
 User-defined data types
-^^^^^^^^^^^^^^^^^^^^^^^
+~~~~~~~~~~~~~~~~~~~~~~~
 
 .. c:function:: void PyArray_InitArrFuncs(PyArray_ArrFuncs* f)
 
@@ -1321,7 +1321,30 @@ User-defined data types
    Only works for user-defined data-types.
 
 Special functions for NPY_OBJECT
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+.. warning::
+
+    When working with arrays or buffers filled with objects NumPy tries to
+    ensure such buffers are filled with ``None`` before any data may be read.
+    However, code paths may existed where an array is only initialized to
+    ``NULL``.
+    NumPy itself accepts ``NULL`` as an alias for ``None``, but may ``assert``
+    non-``NULL`` when compiled in debug mode.
+
+    Because NumPy is not yet consistent about initialization with None,
+    users **must** expect a value of ``NULL`` when working with buffers created
+    by NumPy.  Users **should** also ensure to pass fully initialized buffers
+    to NumPy, since NumPy may make this a strong requirement in the future.
+
+    There is currently an intention to ensure that NumPy always initializes
+    object arrays before they may be read.  Any failure to do so will be
+    regarded as a bug.
+    In the future, users may be able to rely on non-NULL values when reading
+    from any array, although exceptions for writing to freshly created arrays
+    may remain (e.g. for output arrays in ufunc code).  As of NumPy 1.23
+    known code paths exists where proper filling is not done.
+
 
 .. c:function:: int PyArray_INCREF(PyArrayObject* op)
 
@@ -1399,7 +1422,7 @@ PyArray_FromAny function.
 
 
 Basic Array Flags
-^^^^^^^^^^^^^^^^^
+~~~~~~~~~~~~~~~~~
 
 An ndarray can have a data segment that is not a simple contiguous
 chunk of well-behaved memory you can manipulate. It may not be aligned
@@ -1482,7 +1505,7 @@ for ``flags`` which can be any of :c:data:`NPY_ARRAY_C_CONTIGUOUS`,
 
 
 Combinations of array flags
-^^^^^^^^^^^^^^^^^^^^^^^^^^^
+~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 .. c:macro:: NPY_ARRAY_BEHAVED
 
@@ -1514,7 +1537,7 @@ Combinations of array flags
 
 
 Flag-like constants
-^^^^^^^^^^^^^^^^^^^
+~~~~~~~~~~~~~~~~~~~
 
 These constants are used in :c:func:`PyArray_FromAny` (and its macro forms) to
 specify desired properties of the new array.
@@ -1534,7 +1557,7 @@ specify desired properties of the new array.
 
 
 Flag checking
-^^^^^^^^^^^^^
+~~~~~~~~~~~~~
 
 For all of these macros *arr* must be an instance of a (subclass of)
 :c:data:`PyArray_Type`.
@@ -1640,7 +1663,7 @@ Array method alternative API
 
 
 Conversion
-^^^^^^^^^^
+~~~~~~~~~~
 
 .. c:function:: PyObject* PyArray_GetField( \
         PyArrayObject* self, PyArray_Descr* dtype, int offset)
@@ -1749,7 +1772,7 @@ Conversion
 
 
 Shape Manipulation
-^^^^^^^^^^^^^^^^^^
+~~~~~~~~~~~~~~~~~~
 
 .. c:function:: PyObject* PyArray_Newshape( \
         PyArrayObject* self, PyArray_Dims* newshape, NPY_ORDER order)
@@ -1833,7 +1856,7 @@ Shape Manipulation
 
 
 Item selection and manipulation
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 .. c:function:: PyObject* PyArray_TakeFrom( \
         PyArrayObject* self, PyObject* indices, int axis, PyArrayObject* ret, \
@@ -2013,7 +2036,7 @@ Item selection and manipulation
 
 
 Calculation
-^^^^^^^^^^^
+~~~~~~~~~~~
 
 .. tip::
 
@@ -2173,7 +2196,7 @@ Functions
 
 
 Array Functions
-^^^^^^^^^^^^^^^
+~~~~~~~~~~~~~~~
 
 .. c:function:: int PyArray_AsCArray( \
         PyObject** op, void* ptr, npy_intp* dims, int nd, \
@@ -2324,7 +2347,7 @@ Array Functions
 
 
 Other functions
-^^^^^^^^^^^^^^^
+~~~~~~~~~~~~~~~
 
 .. c:function:: npy_bool PyArray_CheckStrides( \
         int elsize, int nd, npy_intp numbytes, npy_intp const* dims, \
@@ -2969,7 +2992,7 @@ Conversion Utilities
 
 
 For use with :c:func:`PyArg_ParseTuple`
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 All of these functions can be used in :c:func:`PyArg_ParseTuple` (...) with
 the "O&" format specifier to automatically convert any Python object
@@ -3024,14 +3047,14 @@ to.
     structure with base, ptr, len, and flags members. The
     :c:type:`PyArray_Chunk` structure is binary compatible with the
     Python's buffer object (through its len member on 32-bit platforms
-    and its ptr member on 64-bit platforms or in Python 2.5). On
-    return, the base member is set to *obj* (or its base if *obj* is
-    already a buffer object pointing to another object). If you need
-    to hold on to the memory be sure to INCREF the base member. The
-    chunk of memory is pointed to by *buf* ->ptr member and has length
-    *buf* ->len. The flags member of *buf* is :c:data:`NPY_ARRAY_ALIGNED`
-    with the :c:data:`NPY_ARRAY_WRITEABLE` flag set if *obj* has
-    a writeable buffer interface.
+    and its ptr member on 64-bit platforms). On return, the base member
+    is set to *obj* (or its base if *obj* is already a buffer object
+    pointing to another object). If you need to hold on to the memory
+    be sure to INCREF the base member. The chunk of memory is pointed
+    to by *buf* ->ptr member and has length *buf* ->len. The flags
+    member of *buf* is :c:data:`NPY_ARRAY_ALIGNED` with the
+    :c:data:`NPY_ARRAY_WRITEABLE` flag set if *obj* has a writeable
+    buffer interface.
 
 .. c:function:: int PyArray_AxisConverter(PyObject* obj, int* axis)
 
@@ -3097,7 +3120,7 @@ to.
    to help functions allow a different clipmode for each dimension.
 
 Other conversions
-^^^^^^^^^^^^^^^^^
+~~~~~~~~~~~~~~~~~
 
 .. c:function:: int PyArray_PyIntAsInt(PyObject* op)
 
@@ -3138,7 +3161,7 @@ Miscellaneous
 
 
 Importing the API
-^^^^^^^^^^^^^^^^^
+~~~~~~~~~~~~~~~~~
 
 In order to make use of the C-API from another extension module, the
 :c:func:`import_array` function must be called. If the extension module is
@@ -3209,7 +3232,7 @@ the C-API is needed then some additional steps must be taken.
           #defined to.
 
 Checking the API Version
-^^^^^^^^^^^^^^^^^^^^^^^^
+~~~~~~~~~~~~~~~~~~~~~~~~
 
 Because python extensions are not used in the same way as usual libraries on
 most platforms, some errors cannot be automatically detected at build time or
@@ -3264,7 +3287,7 @@ extension with the lowest :c:data:`NPY_FEATURE_VERSION` as possible.
     function is added). A changed value does not always require a recompile.
 
 Internal Flexibility
-^^^^^^^^^^^^^^^^^^^^
+~~~~~~~~~~~~~~~~~~~~
 
 .. c:function:: int PyArray_SetNumericOps(PyObject* dict)
 
@@ -3321,7 +3344,7 @@ Internal Flexibility
 
 
 Memory management
-^^^^^^^^^^^^^^^^^
+~~~~~~~~~~~~~~~~~
 
 .. c:function:: char* PyDataMem_NEW(size_t nbytes)
 
@@ -3368,7 +3391,7 @@ Memory management
     Returns 0 if nothing was done, -1 on error, and 1 if action was taken.
 
 Threading support
-^^^^^^^^^^^^^^^^^
+~~~~~~~~~~~~~~~~~
 
 These macros are only meaningful if :c:data:`NPY_ALLOW_THREADS`
 evaluates True during compilation of the extension module. Otherwise,
@@ -3475,7 +3498,7 @@ Group 2
 
 
 Priority
-^^^^^^^^
+~~~~~~~~
 
 .. c:macro:: NPY_PRIORITY
 
@@ -3498,7 +3521,7 @@ Priority
 
 
 Default buffers
-^^^^^^^^^^^^^^^
+~~~~~~~~~~~~~~~
 
 .. c:macro:: NPY_BUFSIZE
 
@@ -3514,7 +3537,7 @@ Default buffers
 
 
 Other constants
-^^^^^^^^^^^^^^^
+~~~~~~~~~~~~~~~
 
 .. c:macro:: NPY_NUM_FLOATTYPE
 
@@ -3548,7 +3571,7 @@ Other constants
 
 
 Miscellaneous Macros
-^^^^^^^^^^^^^^^^^^^^
+~~~~~~~~~~~~~~~~~~~~
 
 .. c:function:: int PyArray_SAMESHAPE(PyArrayObject *a1, PyArrayObject *a2)
 
@@ -3610,7 +3633,7 @@ Miscellaneous Macros
 
 
 Enumerated Types
-^^^^^^^^^^^^^^^^
+~~~~~~~~~~~~~~~~
 
 .. c:enum:: NPY_SORTKIND
 

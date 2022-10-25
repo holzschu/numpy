@@ -166,7 +166,7 @@ class TestComparisonDeprecations(_DeprecationTestCase):
         # For two string arrays, strings always raised the broadcasting error:
         a = np.array(['a', 'b'])
         b = np.array(['a', 'b', 'c'])
-        assert_raises(ValueError, lambda x, y: x == y, a, b)
+        assert_warns(FutureWarning, lambda x, y: x == y, a, b)
 
         # The empty list is not cast to string, and this used to pass due
         # to dtype mismatch; now (2018-06-21) it correctly leads to a
@@ -475,34 +475,6 @@ class TestNonZero(_DeprecationTestCase):
         self.assert_deprecated(lambda: np.nonzero(np.array(1)))
 
 
-def test_deprecate_ragged_arrays():
-    # 2019-11-29 1.19.0
-    #
-    # NEP 34 deprecated automatic object dtype when creating ragged
-    # arrays. Also see the "ragged" tests in `test_multiarray`
-    #
-    # emits a VisibleDeprecationWarning
-    arg = [1, [2, 3]]
-    with assert_warns(np.VisibleDeprecationWarning):
-        np.array(arg)
-
-
-class TestTooDeepDeprecation(_VisibleDeprecationTestCase):
-    # NumPy 1.20, 2020-05-08
-    # This is a bit similar to the above ragged array deprecation case.
-    message = re.escape("Creating an ndarray from nested sequences exceeding")
-
-    def test_deprecation(self):
-        nested = [1]
-        for i in range(np.MAXDIMS - 1):
-            nested = [nested]
-        self.assert_not_deprecated(np.array, args=(nested,))
-        self.assert_not_deprecated(np.array,
-                args=(nested,), kwargs=dict(dtype=object))
-
-        self.assert_deprecated(np.array, args=([nested],))
-
-
 class TestToString(_DeprecationTestCase):
     # 2020-03-06 1.19.0
     message = re.escape("tostring() is deprecated. Use tobytes() instead.")
@@ -642,20 +614,6 @@ class TestMatrixInOuter(_DeprecationTestCase):
         self.assert_deprecated(np.add.outer, args=(arr, m))
         self.assert_deprecated(np.add.outer, args=(m, arr))
         self.assert_not_deprecated(np.add.outer, args=(arr, arr))
-
-
-class TestRaggedArray(_DeprecationTestCase):
-    # 2020-07-24, NumPy 1.20.0
-    message = "setting an array element with a sequence"
-
-    def test_deprecated(self):
-        arr = np.ones((1, 1))
-        # Deprecated if the array is a leave node:
-        self.assert_deprecated(lambda: np.array([arr, 0], dtype=np.float64))
-        self.assert_deprecated(lambda: np.array([0, arr], dtype=np.float64))
-        # And when it is an assignment into a lower dimensional subarray:
-        self.assert_deprecated(lambda: np.array([arr, [0]], dtype=np.float64))
-        self.assert_deprecated(lambda: np.array([[0], arr], dtype=np.float64))
 
 
 class FlatteningConcatenateUnsafeCast(_DeprecationTestCase):
@@ -1213,3 +1171,62 @@ class TestAxisNotMAXDIMS(_DeprecationTestCase):
     def test_deprecated(self):
         a = np.zeros((1,)*32)
         self.assert_deprecated(lambda: np.repeat(a, 1, axis=np.MAXDIMS))
+
+
+class TestLoadtxtParseIntsViaFloat(_DeprecationTestCase):
+    # Deprecated 2022-07-03, NumPy 1.23
+    # This test can be removed without replacement after the deprecation.
+    # The tests:
+    #   * numpy/lib/tests/test_loadtxt.py::test_integer_signs
+    #   * lib/tests/test_loadtxt.py::test_implicit_cast_float_to_int_fails
+    # Have a warning filter that needs to be removed.
+    message = r"loadtxt\(\): Parsing an integer via a float is deprecated.*"
+
+    @pytest.mark.parametrize("dtype", np.typecodes["AllInteger"])
+    def test_deprecated_warning(self, dtype):
+        with pytest.warns(DeprecationWarning, match=self.message):
+            np.loadtxt(["10.5"], dtype=dtype)
+
+    @pytest.mark.parametrize("dtype", np.typecodes["AllInteger"])
+    def test_deprecated_raised(self, dtype):
+        # The DeprecationWarning is chained when raised, so test manually:
+        with warnings.catch_warnings():
+            warnings.simplefilter("error", DeprecationWarning)
+            try:
+                np.loadtxt(["10.5"], dtype=dtype)
+            except ValueError as e:
+                assert isinstance(e.__cause__, DeprecationWarning)
+
+
+class TestPyIntConversion(_DeprecationTestCase):
+    message = r".*stop allowing conversion of out-of-bound.*"
+
+    @pytest.mark.parametrize("dtype", np.typecodes["AllInteger"])
+    def test_deprecated_scalar(self, dtype):
+        dtype = np.dtype(dtype)
+        info = np.iinfo(dtype)
+
+        # Cover the most common creation paths (all end up in the
+        # same place):
+        def scalar(value, dtype):
+            dtype.type(value)
+
+        def assign(value, dtype):
+            arr = np.array([0, 0, 0], dtype=dtype)
+            arr[2] = value
+
+        def create(value, dtype):
+            np.array([value], dtype=dtype)
+
+        for creation_func in [scalar, assign, create]:
+            try:
+                self.assert_deprecated(
+                        lambda: creation_func(info.min - 1, dtype))
+            except OverflowError:
+                pass  # OverflowErrors always happened also before and are OK.
+
+            try:
+                self.assert_deprecated(
+                        lambda: creation_func(info.max + 1, dtype))
+            except OverflowError:
+                pass  # OverflowErrors always happened also before and are OK.

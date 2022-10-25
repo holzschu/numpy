@@ -508,7 +508,7 @@ Linear Algebra Functions
    * - ``vector_norm`` (*)
      - Floating-point
 
-(*) Thes functions are split from ``norm`` from the main ``numpy`` namespace.
+(*) These functions are split from ``norm`` from the main ``numpy`` namespace.
 See :ref:`array_api-name-changes`.
 
 (**) These functions are new in the array API and are not in the main
@@ -801,3 +801,8 @@ Other Differences
      - **Strictness**
      - The spec allows duck typing, so ``finfo`` returning dtype
        scalars is considered type compatible with ``float``.
+   * - Positional arguments in every function are positional-only.
+     - **Breaking**
+     - See the spec for the exact signature of each function. Note that NumPy
+       ufuncs already use positional-only arguments, but non-ufuncs like
+       ``asarray`` generally do not.

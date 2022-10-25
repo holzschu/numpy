@@ -62,7 +62,7 @@ NPY_NO_EXPORT int NPY_NUMUSERTYPES = 0;
 #include "multiarraymodule.h"
 #include "cblasfuncs.h"
 #include "vdot.h"
-#include "templ_common.h" /* for npy_mul_with_overflow_intp */
+#include "templ_common.h" /* for npy_mul_sizes_with_overflow */
 #include "compiled_base.h"
 #include "mem_overlap.h"
 #include "typeinfo.h"
@@ -106,6 +106,10 @@ NPY_NO_EXPORT void reset_PyArrayDTypeMeta_Type(void);
 
 NPY_NO_EXPORT int initscalarmath(PyObject *);
 NPY_NO_EXPORT int set_matmul_flags(PyObject *d); /* in ufunc_object.c */
+/* From umath/string_ufuncs.cpp/h */
+NPY_NO_EXPORT PyObject *
+_umath_strings_richcompare(
+        PyArrayObject *self, PyArrayObject *other, int cmp_op, int rstrip);
 
 /*
  * global variable to determine if legacy printing is enabled, accessible from
@@ -159,12 +163,12 @@ PyArray_GetPriority(PyObject *obj, double default_)
     }
 
     priority = PyFloat_AsDouble(ret);
+    Py_DECREF(ret);
     if (error_converting(priority)) {
         /* TODO[gh-14801]: propagate crashes for bad priority? */
         PyErr_Clear();
         return default_;
     }
-    Py_DECREF(ret);
     return priority;
 }
 
@@ -211,7 +215,7 @@ PyArray_OverflowMultiplyList(npy_intp const *l1, int n)
         if (dim == 0) {
             return 0;
         }
-        if (npy_mul_with_overflow_intp(&prod, prod, dim)) {
+        if (npy_mul_sizes_with_overflow(&prod, prod, dim)) {
             return -1;
         }
     }
@@ -453,7 +457,7 @@ PyArray_ConcatenateArrays(int narrays, PyArrayObject **arrays, int axis,
             /* Validate that the rest of the dimensions match */
             else if (shape[idim] != arr_shape[idim]) {
                 PyErr_Format(PyExc_ValueError,
-                             "all the input array dimensions for the "
+                             "all the input array dimensions except for the "
                              "concatenation axis must match exactly, but "
                              "along dimension %d, the array at index %d has "
                              "size %d and the array at index %d has size %d",
@@ -1160,6 +1164,15 @@ fail:
 NPY_NO_EXPORT PyObject *
 PyArray_CopyAndTranspose(PyObject *op)
 {
+    /* DEPRECATED 2022-09-30, NumPy 1.24 - see gh-22313 */
+    if (DEPRECATE(
+            "fastCopyAndTranspose and the underlying C function "
+            "PyArray_CopyAndTranspose have been deprecated.\n\n"
+            "Use the transpose method followed by a C-order copy instead, "
+            "e.g. ``arr.T.copy()``") < 0) {
+        return NULL;
+    }
+
     PyArrayObject *arr, *tmp, *ret;
     int i;
     npy_intp new_axes_values[NPY_MAXDIMS];
@@ -1652,12 +1665,31 @@ _array_fromobject_generic(
                 goto finish;
             }
         }
-        /* One more chance */
+        /* One more chance for faster exit if user specified the dtype. */
         oldtype = PyArray_DESCR(oparr);
         if (PyArray_EquivTypes(oldtype, type)) {
             if (copy != NPY_COPY_ALWAYS && STRIDING_OK(oparr, order)) {
-                Py_INCREF(op);
-                ret = oparr;
+                if (oldtype == type) {
+                    Py_INCREF(op);
+                    ret = oparr;
+                }
+                else {
+                    /* Create a new PyArrayObject from the caller's
+                     * PyArray_Descr. Use the reference `op` as the base
+                     * object. */
+                    Py_INCREF(type);
+                    ret = (PyArrayObject *)PyArray_NewFromDescrAndBase(
+                            Py_TYPE(op),
+                            type,
+                            PyArray_NDIM(oparr),
+                            PyArray_DIMS(oparr),
+                            PyArray_STRIDES(oparr),
+                            PyArray_DATA(oparr),
+                            PyArray_FLAGS(oparr),
+                            op,
+                            op
+                            );
+                }
                 goto finish;
             }
             else {
@@ -1731,7 +1763,7 @@ array_array(PyObject *NPY_UNUSED(ignored),
     int ndmin = 0;
     PyArray_Descr *type = NULL;
     NPY_ORDER order = NPY_KEEPORDER;
-    PyObject *like = NULL;
+    PyObject *like = Py_None;
     NPY_PREPARE_ARGPARSER;
 
     if (len_args != 1 || (kwnames != NULL)) {
@@ -1747,7 +1779,7 @@ array_array(PyObject *NPY_UNUSED(ignored),
             Py_XDECREF(type);
             return NULL;
         }
-        if (like != NULL) {
+        if (like != Py_None) {
             PyObject *deferred = array_implement_c_array_function_creation(
                     "array", like, NULL, NULL, args, len_args, kwnames);
             if (deferred != Py_NotImplemented) {
@@ -1774,7 +1806,7 @@ array_asarray(PyObject *NPY_UNUSED(ignored),
     PyObject *op;
     PyArray_Descr *type = NULL;
     NPY_ORDER order = NPY_KEEPORDER;
-    PyObject *like = NULL;
+    PyObject *like = Py_None;
     NPY_PREPARE_ARGPARSER;
 
     if (len_args != 1 || (kwnames != NULL)) {
@@ -1787,7 +1819,7 @@ array_asarray(PyObject *NPY_UNUSED(ignored),
             Py_XDECREF(type);
             return NULL;
         }
-        if (like != NULL) {
+        if (like != Py_None) {
             PyObject *deferred = array_implement_c_array_function_creation(
                     "asarray", like, NULL, NULL, args, len_args, kwnames);
             if (deferred != Py_NotImplemented) {
@@ -1813,7 +1845,7 @@ array_asanyarray(PyObject *NPY_UNUSED(ignored),
     PyObject *op;
     PyArray_Descr *type = NULL;
     NPY_ORDER order = NPY_KEEPORDER;
-    PyObject *like = NULL;
+    PyObject *like = Py_None;
     NPY_PREPARE_ARGPARSER;
 
     if (len_args != 1 || (kwnames != NULL)) {
@@ -1826,7 +1858,7 @@ array_asanyarray(PyObject *NPY_UNUSED(ignored),
             Py_XDECREF(type);
             return NULL;
         }
-        if (like != NULL) {
+        if (like != Py_None) {
             PyObject *deferred = array_implement_c_array_function_creation(
                     "asanyarray", like, NULL, NULL, args, len_args, kwnames);
             if (deferred != Py_NotImplemented) {
@@ -1852,7 +1884,7 @@ array_ascontiguousarray(PyObject *NPY_UNUSED(ignored),
 {
     PyObject *op;
     PyArray_Descr *type = NULL;
-    PyObject *like = NULL;
+    PyObject *like = Py_None;
     NPY_PREPARE_ARGPARSER;
 
     if (len_args != 1 || (kwnames != NULL)) {
@@ -1864,7 +1896,7 @@ array_ascontiguousarray(PyObject *NPY_UNUSED(ignored),
             Py_XDECREF(type);
             return NULL;
         }
-        if (like != NULL) {
+        if (like != Py_None) {
             PyObject *deferred = array_implement_c_array_function_creation(
                     "ascontiguousarray", like, NULL, NULL, args, len_args, kwnames);
             if (deferred != Py_NotImplemented) {
@@ -1890,7 +1922,7 @@ array_asfortranarray(PyObject *NPY_UNUSED(ignored),
 {
     PyObject *op;
     PyArray_Descr *type = NULL;
-    PyObject *like = NULL;
+    PyObject *like = Py_None;
     NPY_PREPARE_ARGPARSER;
 
     if (len_args != 1 || (kwnames != NULL)) {
@@ -1902,7 +1934,7 @@ array_asfortranarray(PyObject *NPY_UNUSED(ignored),
             Py_XDECREF(type);
             return NULL;
         }
-        if (like != NULL) {
+        if (like != Py_None) {
             PyObject *deferred = array_implement_c_array_function_creation(
                     "asfortranarray", like, NULL, NULL, args, len_args, kwnames);
             if (deferred != Py_NotImplemented) {
@@ -1979,7 +2011,7 @@ array_empty(PyObject *NPY_UNUSED(ignored),
     NPY_ORDER order = NPY_CORDER;
     npy_bool is_f_order;
     PyArrayObject *ret = NULL;
-    PyObject *like = NULL;
+    PyObject *like = Py_None;
     NPY_PREPARE_ARGPARSER;
 
     if (npy_parse_arguments("empty", args, len_args, kwnames,
@@ -1991,7 +2023,7 @@ array_empty(PyObject *NPY_UNUSED(ignored),
         goto fail;
     }
 
-    if (like != NULL) {
+    if (like != Py_None) {
         PyObject *deferred = array_implement_c_array_function_creation(
                 "empty", like, NULL, NULL, args, len_args, kwnames);
         if (deferred != Py_NotImplemented) {
@@ -2189,7 +2221,7 @@ array_zeros(PyObject *NPY_UNUSED(ignored),
     NPY_ORDER order = NPY_CORDER;
     npy_bool is_f_order = NPY_FALSE;
     PyArrayObject *ret = NULL;
-    PyObject *like = NULL;
+    PyObject *like = Py_None;
     NPY_PREPARE_ARGPARSER;
 
     if (npy_parse_arguments("zeros", args, len_args, kwnames,
@@ -2202,7 +2234,7 @@ array_zeros(PyObject *NPY_UNUSED(ignored),
     }
 
 
-    if (like != NULL) {
+    if (like != Py_None) {
         PyObject *deferred = array_implement_c_array_function_creation(
                 "zeros", like, NULL, NULL, args, len_args, kwnames);
         if (deferred != Py_NotImplemented) {
@@ -2269,7 +2301,7 @@ array_fromstring(PyObject *NPY_UNUSED(ignored), PyObject *args, PyObject *keywds
 #else
     static __thread char *kwlist[] = {"string", "dtype", "count", "sep", "like", NULL};
 #endif
-    PyObject *like = NULL;
+    PyObject *like = Py_None;
     PyArray_Descr *descr = NULL;
 
     if (!PyArg_ParseTupleAndKeywords(args, keywds,
@@ -2278,7 +2310,7 @@ array_fromstring(PyObject *NPY_UNUSED(ignored), PyObject *args, PyObject *keywds
         Py_XDECREF(descr);
         return NULL;
     }
-    if (like != NULL) {
+    if (like != Py_None) {
         PyObject *deferred = array_implement_c_array_function_creation(
                 "fromstring", like, args, keywds, NULL, 0, NULL);
         if (deferred != Py_NotImplemented) {
@@ -2314,7 +2346,7 @@ array_fromfile(PyObject *NPY_UNUSED(ignored), PyObject *args, PyObject *keywds)
 #else
     static __thread char *kwlist[] = {"file", "dtype", "count", "sep", "offset", "like", NULL};
 #endif
-    PyObject *like = NULL;
+    PyObject *like = Py_None;
     PyArray_Descr *type = NULL;
     int own;
     npy_off_t orig_pos = 0, offset = 0;
@@ -2327,7 +2359,7 @@ array_fromfile(PyObject *NPY_UNUSED(ignored), PyObject *args, PyObject *keywds)
         return NULL;
     }
 
-    if (like != NULL) {
+    if (like != Py_None) {
         PyObject *deferred = array_implement_c_array_function_creation(
                 "fromfile", like, args, keywds, NULL, 0, NULL);
         if (deferred != Py_NotImplemented) {
@@ -2408,7 +2440,7 @@ array_fromiter(PyObject *NPY_UNUSED(ignored), PyObject *args, PyObject *keywds)
 #else
     static __thread char *kwlist[] = {"iter", "dtype", "count", "like", NULL};
 #endif
-    PyObject *like = NULL;
+    PyObject *like = Py_None;
     PyArray_Descr *descr = NULL;
 
     if (!PyArg_ParseTupleAndKeywords(args, keywds,
@@ -2417,7 +2449,7 @@ array_fromiter(PyObject *NPY_UNUSED(ignored), PyObject *args, PyObject *keywds)
         Py_XDECREF(descr);
         return NULL;
     }
-    if (like != NULL) {
+    if (like != Py_None) {
         PyObject *deferred = array_implement_c_array_function_creation(
                 "fromiter", like, args, keywds, NULL, 0, NULL);
         if (deferred != Py_NotImplemented) {
@@ -2439,7 +2471,7 @@ array_frombuffer(PyObject *NPY_UNUSED(ignored), PyObject *args, PyObject *keywds
 #else
     static __thread char *kwlist[] = {"buffer", "dtype", "count", "offset", "like", NULL};
 #endif
-    PyObject *like = NULL;
+    PyObject *like = Py_None;
     PyArray_Descr *type = NULL;
 
     if (!PyArg_ParseTupleAndKeywords(args, keywds,
@@ -2449,7 +2481,7 @@ array_frombuffer(PyObject *NPY_UNUSED(ignored), PyObject *args, PyObject *keywds
         return NULL;
     }
 
-    if (like != NULL) {
+    if (like != Py_None) {
         PyObject *deferred = array_implement_c_array_function_creation(
                 "frombuffer", like, args, keywds, NULL, 0, NULL);
         if (deferred != Py_NotImplemented) {
@@ -3024,7 +3056,7 @@ array_fastCopyAndTranspose(PyObject *NPY_UNUSED(dummy), PyObject *args)
 {
     PyObject *a0;
 
-    if (!PyArg_ParseTuple(args, "O:_fastCopyAndTranspose", &a0)) {
+    if (!PyArg_ParseTuple(args, "O:fastCopyAndTranspose", &a0)) {
         return NULL;
     }
     return PyArray_Return((PyArrayObject *)PyArray_CopyAndTranspose(a0));
@@ -3072,7 +3104,7 @@ array_arange(PyObject *NPY_UNUSED(ignored),
 {
     PyObject *o_start = NULL, *o_stop = NULL, *o_step = NULL, *range=NULL;
     PyArray_Descr *typecode = NULL;
-    PyObject *like = NULL;
+    PyObject *like = Py_None;
     NPY_PREPARE_ARGPARSER;
 
     if (npy_parse_arguments("arange", args, len_args, kwnames,
@@ -3085,7 +3117,7 @@ array_arange(PyObject *NPY_UNUSED(ignored),
         Py_XDECREF(typecode);
         return NULL;
     }
-    if (like != NULL) {
+    if (like != Py_None) {
         PyObject *deferred = array_implement_c_array_function_creation(
                 "arange", like, NULL, NULL, args, len_args, kwnames);
         if (deferred != Py_NotImplemented) {
@@ -3610,10 +3642,11 @@ array_result_type(PyObject *NPY_UNUSED(dummy), PyObject *args)
             if (arr[narr] == NULL) {
                 goto finish;
             }
-            if (PyLong_CheckExact(obj) || PyFloat_CheckExact(obj) ||
-                    PyComplex_CheckExact(obj)) {
-                ((PyArrayObject_fields *)arr[narr])->flags |= _NPY_ARRAY_WAS_PYSCALAR;
-            }
+            /*
+             * Mark array if it was a python scalar (we do not need the actual
+             * DType here yet, this is figured out inside ResultType.
+             */
+            npy_mark_tmp_array_if_pyscalar(obj, arr[narr], NULL);
             ++narr;
         }
         else {
@@ -3807,6 +3840,12 @@ format_longfloat(PyObject *NPY_UNUSED(dummy), PyObject *args, PyObject *kwds)
                               TrimMode_LeaveOneZero, -1, -1);
 }
 
+
+/*
+ * The only purpose of this function is that it allows the "rstrip".
+ * From my (@seberg's) perspective, this function should be deprecated
+ * and I do not think it matters if it is not particularly fast.
+ */
 static PyObject *
 compare_chararrays(PyObject *NPY_UNUSED(dummy), PyObject *args, PyObject *kwds)
 {
@@ -3877,7 +3916,7 @@ compare_chararrays(PyObject *NPY_UNUSED(dummy), PyObject *args, PyObject *kwds)
         return NULL;
     }
     if (PyArray_ISSTRING(newarr) && PyArray_ISSTRING(newoth)) {
-        res = _strings_richcompare(newarr, newoth, cmp_op, rstrip != 0);
+        res = _umath_strings_richcompare(newarr, newoth, cmp_op, rstrip != 0);
     }
     else {
         PyErr_SetString(PyExc_TypeError,
@@ -4463,7 +4502,7 @@ static struct PyMethodDef array_module_methods[] = {
     {"c_einsum",
         (PyCFunction)array_einsum,
         METH_VARARGS|METH_KEYWORDS, NULL},
-    {"_fastCopyAndTranspose",
+    {"fastCopyAndTranspose",
         (PyCFunction)array_fastCopyAndTranspose,
         METH_VARARGS, NULL},
     {"correlate",
@@ -4581,6 +4620,14 @@ static struct PyMethodDef array_module_methods[] = {
     {"get_handler_version",
         (PyCFunction) get_handler_version,
         METH_VARARGS, NULL},
+    {"_get_promotion_state",
+        (PyCFunction)npy__get_promotion_state,
+        METH_NOARGS, "Get the current NEP 50 promotion state."},
+    {"_set_promotion_state",
+         (PyCFunction)npy__set_promotion_state,
+         METH_O, "Set the NEP 50 promotion state.  This is not thread-safe.\n"
+                 "The optional warnings can be safely silenced using the \n"
+                 "`np._no_nep50_warning()` context manager."},
     {"_add_newdoc_ufunc", (PyCFunction)add_newdoc_ufunc,
         METH_VARARGS, NULL},
     {"_get_sfloat_dtype",

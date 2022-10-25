@@ -1363,10 +1363,22 @@ class TestRandomDist:
                             [5, 1]])
         assert_array_equal(actual, desired)
 
-    def test_logseries_exceptions(self):
-        with np.errstate(invalid='ignore'):
-            assert_raises(ValueError, random.logseries, np.nan)
-            assert_raises(ValueError, random.logseries, [np.nan] * 10)
+    def test_logseries_zero(self):
+        random = Generator(MT19937(self.seed))
+        assert random.logseries(0) == 1
+
+    @pytest.mark.parametrize("value", [np.nextafter(0., -1), 1., np.nan, 5.])
+    def test_logseries_exceptions(self, value):
+        random = Generator(MT19937(self.seed))
+        with np.errstate(invalid="ignore"):
+            with pytest.raises(ValueError):
+                random.logseries(value)
+            with pytest.raises(ValueError):
+                # contiguous path:
+                random.logseries(np.array([value] * 10))
+            with pytest.raises(ValueError):
+                # non-contiguous path:
+                random.logseries(np.array([value] * 10)[::2])
 
     def test_multinomial(self):
         random = Generator(MT19937(self.seed))
@@ -1452,6 +1464,12 @@ class TestRandomDist:
                       mu, np.empty((3, 2)))
         assert_raises(ValueError, random.multivariate_normal,
                       mu, np.eye(3))
+        
+    @pytest.mark.parametrize('mean, cov', [([0], [[1+1j]]), ([0j], [[1]])])
+    def test_multivariate_normal_disallow_complex(self, mean, cov):
+        random = Generator(MT19937(self.seed))
+        with pytest.raises(TypeError, match="must not be complex"):
+            random.multivariate_normal(mean, cov)
 
     @pytest.mark.parametrize("method", ["svd", "eigh", "cholesky"])
     def test_multivariate_normal_basic_stats(self, method):
@@ -2689,3 +2707,16 @@ def test_contig_req_out(dist, order, dtype):
     assert variates is out
     variates = dist(out=out, dtype=dtype, size=out.shape)
     assert variates is out
+
+
+def test_generator_ctor_old_style_pickle():
+    rg = np.random.Generator(np.random.PCG64DXSM(0))
+    rg.standard_normal(1)
+    # Directly call reduce which is used in pickling
+    ctor, args, state_a = rg.__reduce__()
+    # Simulate unpickling an old pickle that only has the name
+    assert args[:1] == ("PCG64DXSM",)
+    b = ctor(*args[:1])
+    b.bit_generator.state = state_a
+    state_b = b.bit_generator.state
+    assert state_a == state_b

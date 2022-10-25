@@ -5,6 +5,8 @@
 #ifndef _NPY_SIMD_AVX512_OPERATORS_H
 #define _NPY_SIMD_AVX512_OPERATORS_H
 
+#include "conversion.h" // tobits
+
 /***************************
  * Shifting
  ***************************/
@@ -319,8 +321,8 @@
 // precision comparison
 #define npyv_cmpeq_f32(A, B)  _mm512_cmp_ps_mask(A, B, _CMP_EQ_OQ)
 #define npyv_cmpeq_f64(A, B)  _mm512_cmp_pd_mask(A, B, _CMP_EQ_OQ)
-#define npyv_cmpneq_f32(A, B) _mm512_cmp_ps_mask(A, B, _CMP_NEQ_OQ)
-#define npyv_cmpneq_f64(A, B) _mm512_cmp_pd_mask(A, B, _CMP_NEQ_OQ)
+#define npyv_cmpneq_f32(A, B) _mm512_cmp_ps_mask(A, B, _CMP_NEQ_UQ)
+#define npyv_cmpneq_f64(A, B) _mm512_cmp_pd_mask(A, B, _CMP_NEQ_UQ)
 #define npyv_cmplt_f32(A, B)  _mm512_cmp_ps_mask(A, B, _CMP_LT_OQ)
 #define npyv_cmplt_f64(A, B)  _mm512_cmp_pd_mask(A, B, _CMP_LT_OQ)
 #define npyv_cmple_f32(A, B)  _mm512_cmp_ps_mask(A, B, _CMP_LE_OQ)
@@ -335,5 +337,44 @@ NPY_FINLINE npyv_b32 npyv_notnan_f32(npyv_f32 a)
 { return _mm512_cmp_ps_mask(a, a, _CMP_ORD_Q); }
 NPY_FINLINE npyv_b64 npyv_notnan_f64(npyv_f64 a)
 { return _mm512_cmp_pd_mask(a, a, _CMP_ORD_Q); }
+
+// Test cross all vector lanes
+// any: returns true if any of the elements is not equal to zero
+// all: returns true if all elements are not equal to zero
+#define NPYV_IMPL_AVX512_ANYALL(SFX, MASK)        \
+    NPY_FINLINE bool npyv_any_##SFX(npyv_##SFX a) \
+    { return npyv_tobits_##SFX(a) != 0; }         \
+    NPY_FINLINE bool npyv_all_##SFX(npyv_##SFX a) \
+    { return npyv_tobits_##SFX(a) == MASK; }
+NPYV_IMPL_AVX512_ANYALL(b8,  0xffffffffffffffffull)
+NPYV_IMPL_AVX512_ANYALL(b16, 0xfffffffful)
+NPYV_IMPL_AVX512_ANYALL(b32, 0xffff)
+NPYV_IMPL_AVX512_ANYALL(b64, 0xff)
+#undef NPYV_IMPL_AVX512_ANYALL
+
+#define NPYV_IMPL_AVX512_ANYALL(SFX, BSFX, MASK)   \
+    NPY_FINLINE bool npyv_any_##SFX(npyv_##SFX a)  \
+    {                                              \
+        return npyv_tobits_##BSFX(                 \
+            npyv_cmpeq_##SFX(a, npyv_zero_##SFX()) \
+        ) != MASK;                                 \
+    }                                              \
+    NPY_FINLINE bool npyv_all_##SFX(npyv_##SFX a)  \
+    {                                              \
+        return npyv_tobits_##BSFX(                 \
+            npyv_cmpeq_##SFX(a, npyv_zero_##SFX()) \
+        ) == 0;                                    \
+    }
+NPYV_IMPL_AVX512_ANYALL(u8,  b8,  0xffffffffffffffffull)
+NPYV_IMPL_AVX512_ANYALL(s8,  b8,  0xffffffffffffffffull)
+NPYV_IMPL_AVX512_ANYALL(u16, b16, 0xfffffffful)
+NPYV_IMPL_AVX512_ANYALL(s16, b16, 0xfffffffful)
+NPYV_IMPL_AVX512_ANYALL(u32, b32, 0xffff)
+NPYV_IMPL_AVX512_ANYALL(s32, b32, 0xffff)
+NPYV_IMPL_AVX512_ANYALL(u64, b64, 0xff)
+NPYV_IMPL_AVX512_ANYALL(s64, b64, 0xff)
+NPYV_IMPL_AVX512_ANYALL(f32, b32, 0xffff)
+NPYV_IMPL_AVX512_ANYALL(f64, b64, 0xff)
+#undef NPYV_IMPL_AVX512_ANYALL
 
 #endif // _NPY_SIMD_AVX512_OPERATORS_H
