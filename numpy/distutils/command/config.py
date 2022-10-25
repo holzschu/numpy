@@ -16,7 +16,7 @@ from distutils.file_util import copy_file
 from distutils.ccompiler import CompileError, LinkError
 import distutils
 from numpy.distutils.exec_command import filepath_from_subprocess_output
-from numpy.distutils.mingw32ccompiler import generate_manifest
+# from numpy.distutils.mingw32ccompiler import generate_manifest
 from numpy.distutils.command.autodist import (check_gcc_function_attribute,
                                               check_gcc_function_attribute_with_intrinsics,
                                               check_gcc_variable_attribute,
