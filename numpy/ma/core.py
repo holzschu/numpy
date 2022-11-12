@@ -712,6 +712,9 @@ def getdata(a, subok=True):
     """
     try:
         data = a._data
+        # iOS (probably other platforms as well): a._data can exist but it is not an ndarray:
+        if not issubclass(type(data), np.ndarray):
+            data =  np.array(a, copy=False, subok=subok)
     except AttributeError:
         data = np.array(a, copy=False, subok=subok)
     if not subok:
