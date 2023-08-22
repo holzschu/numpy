@@ -14,7 +14,7 @@
  * This entire function is just a wrapper around the Python function of the
  * same name.
  */
-NPY_INLINE static int
+static inline int
 npy_ctypes_check(PyTypeObject *obj)
 {
 #if !TARGET_OS_IPHONE

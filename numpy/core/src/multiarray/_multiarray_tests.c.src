@@ -177,8 +177,14 @@ test_neighborhood_iterator(PyObject* NPY_UNUSED(self), PyObject* args)
         return NULL;
     }
 
-    typenum = PyArray_ObjectType(x, 0);
+    typenum = PyArray_ObjectType(x, NPY_NOTYPE);
+    if (typenum == NPY_NOTYPE) {
+        return NULL;
+    }
     typenum = PyArray_ObjectType(fill, typenum);
+    if (typenum == NPY_NOTYPE) {
+        return NULL;
+    }
 
     ax = (PyArrayObject*)PyArray_FromObject(x, typenum, 1, 10);
     if (ax == NULL) {
@@ -343,7 +349,10 @@ test_neighborhood_iterator_oob(PyObject* NPY_UNUSED(self), PyObject* args)
         return NULL;
     }
 
-    typenum = PyArray_ObjectType(x, 0);
+    typenum = PyArray_ObjectType(x, NPY_NOTYPE);
+    if (typenum == NPY_NOTYPE) {
+        return NULL;
+    }
 
     ax = (PyArrayObject*)PyArray_FromObject(x, typenum, 1, 10);
     if (ax == NULL) {
@@ -2045,13 +2054,13 @@ get_fpu_mode(PyObject *NPY_UNUSED(self), PyObject *args)
         return NULL;
     }
 
-#if defined(_MSC_VER)
+#if defined(_MSC_VER) && !defined(__clang__)
     {
         unsigned int result = 0;
         result = _controlfp(0, 0);
         return PyLong_FromLongLong(result);
     }
-#elif defined(__GNUC__) && (defined(__x86_64__) || defined(__i386__))
+#elif (defined(__GNUC__) && (defined(__x86_64__) || defined(__i386__))) || (defined(_MSC_VER) && defined(__clang__))
     {
         unsigned short cw = 0;
         __asm__("fstcw %w0" : "=m" (cw));

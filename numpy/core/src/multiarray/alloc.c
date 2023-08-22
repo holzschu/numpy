@@ -111,7 +111,7 @@ _set_madvise_hugepage(PyObject *NPY_UNUSED(self), PyObject *enabled_obj)
  * base function for data cache with 1 byte buckets and dimension cache with
  * sizeof(npy_intp) byte buckets
  */
-static NPY_INLINE void *
+static inline void *
 _npy_alloc_cache(npy_uintp nelem, npy_uintp esz, npy_uint msz,
                  cache_bucket * cache, void * (*alloc)(size_t))
 {
@@ -149,7 +149,7 @@ _npy_alloc_cache(npy_uintp nelem, npy_uintp esz, npy_uint msz,
  * return pointer p to cache, nelem is number of elements of the cache bucket
  * size (1 or sizeof(npy_intp)) of the block pointed too
  */
-static NPY_INLINE void
+static inline void
 _npy_free_cache(void * p, npy_uintp nelem, npy_uint msz,
                 cache_bucket * cache, void (*dealloc)(void *))
 {
@@ -229,7 +229,7 @@ npy_free_cache_dim(void * p, npy_uintp sz)
 }
 
 /* Similar to array_dealloc in arrayobject.c */
-static NPY_INLINE void
+static inline void
 WARN_NO_RETURN(PyObject* warning, const char * msg) {
     if (PyErr_WarnEx(warning, msg, 1) < 0) {
         PyObject * s;
@@ -387,7 +387,7 @@ PyDataMem_RENEW(void *ptr, size_t size)
 // The default data mem allocator malloc routine does not make use of a ctx.
 // It should be called only through PyDataMem_UserNEW
 // since itself does not handle eventhook and tracemalloc logic.
-static NPY_INLINE void *
+static inline void *
 default_malloc(void *NPY_UNUSED(ctx), size_t size)
 {
     return _npy_alloc_cache(size, 1, NBUCKETS, datacache, &malloc);
@@ -396,7 +396,7 @@ default_malloc(void *NPY_UNUSED(ctx), size_t size)
 // The default data mem allocator calloc routine does not make use of a ctx.
 // It should be called only through PyDataMem_UserNEW_ZEROED
 // since itself does not handle eventhook and tracemalloc logic.
-static NPY_INLINE void *
+static inline void *
 default_calloc(void *NPY_UNUSED(ctx), size_t nelem, size_t elsize)
 {
     void * p;
@@ -418,7 +418,7 @@ default_calloc(void *NPY_UNUSED(ctx), size_t nelem, size_t elsize)
 // The default data mem allocator realloc routine does not make use of a ctx.
 // It should be called only through PyDataMem_UserRENEW
 // since itself does not handle eventhook and tracemalloc logic.
-static NPY_INLINE void *
+static inline void *
 default_realloc(void *NPY_UNUSED(ctx), void *ptr, size_t new_size)
 {
     return realloc(ptr, new_size);
@@ -427,7 +427,7 @@ default_realloc(void *NPY_UNUSED(ctx), void *ptr, size_t new_size)
 // The default data mem allocator free routine does not make use of a ctx.
 // It should be called only through PyDataMem_UserFREE
 // since itself does not handle eventhook and tracemalloc logic.
-static NPY_INLINE void
+static inline void
 default_free(void *NPY_UNUSED(ctx), void *ptr, size_t size)
 {
     _npy_free_cache(ptr, size, NBUCKETS, datacache, &free);

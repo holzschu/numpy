@@ -79,7 +79,7 @@ more important than the casting change itself.
 
     As of the early NumPy 1.24 development branch, NumPy has preliminary and
     limited support to test this proposal.  To try it, you can use the
-    development wheels from: https://anaconda.org/scipy-wheels-nightly/numpy
+    development wheels from: https://anaconda.org/scientific-python-nightly-wheels/numpy
 
     It is further necessary to set the following environment variable::
 
@@ -98,8 +98,8 @@ more important than the casting change itself.
     * ``with np._no_nep50_warning():`` allows to suppress warnings when
       ``weak_and_warn`` promotion is used.  (Thread and context safe.)
 
-    At this time overflow warnings on some scalar integer operations are still
-    missing.  Further, ``np.can_cast`` fails to give warnings in the
+    At this time overflow warnings on integer power are missing.
+    Further, ``np.can_cast`` fails to give warnings in the
     ``weak_and_warn`` mode.  Its behavior with respect to Python scalar input
     may still be in flux (this should affect very few users).
 

@@ -248,7 +248,7 @@ class Sort(Benchmark):
         # In NumPy 1.17 and newer, 'merge' can be one of several
         # stable sorts, it isn't necessarily merge sort.
         ['quick', 'merge', 'heap'],
-        ['float64', 'int64', 'float32', 'uint32', 'int32', 'int16'],
+        ['float64', 'int64', 'float32', 'uint32', 'int32', 'int16', 'float16'],
         [
             ('random',),
             ('ordered',),
@@ -308,7 +308,9 @@ class SortWorst(Benchmark):
 class Where(Benchmark):
     def setup(self):
         self.d = np.arange(20000)
+        self.d_o = self.d.astype(object)
         self.e = self.d.copy()
+        self.e_o = self.d_o.copy()
         self.cond = (self.d > 5000)
         size = 1024 * 1024 // 8
         rnd_array = np.random.rand(size)
@@ -331,6 +333,11 @@ class Where(Benchmark):
 
     def time_2(self):
         np.where(self.cond, self.d, self.e)
+
+    def time_2_object(self):
+        # object and byteswapped arrays have a
+        # special slow path in the where internals
+        np.where(self.cond, self.d_o, self.e_o)
 
     def time_2_broadcast(self):
         np.where(self.cond, self.d, 0)

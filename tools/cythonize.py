@@ -58,7 +58,7 @@ def process_tempita_pyx(fromfile, tofile):
     import npy_tempita as tempita
 
     assert fromfile.endswith('.pyx.in')
-    with open(fromfile, "r") as f:
+    with open(fromfile) as f:
         tmpl = f.read()
     pyxcontent = tempita.sub(tmpl)
     pyxfile = fromfile[:-len('.pyx.in')] + '.pyx'
@@ -72,7 +72,7 @@ def process_tempita_pyd(fromfile, tofile):
 
     assert fromfile.endswith('.pxd.in')
     assert tofile.endswith('.pxd')
-    with open(fromfile, "r") as f:
+    with open(fromfile) as f:
         tmpl = f.read()
     pyxcontent = tempita.sub(tmpl)
     with open(tofile, "w") as f:
@@ -83,7 +83,7 @@ def process_tempita_pxi(fromfile, tofile):
 
     assert fromfile.endswith('.pxi.in')
     assert tofile.endswith('.pxi')
-    with open(fromfile, "r") as f:
+    with open(fromfile) as f:
         tmpl = f.read()
     pyxcontent = tempita.sub(tmpl)
     with open(tofile, "w") as f:
@@ -94,7 +94,7 @@ def process_tempita_pxd(fromfile, tofile):
 
     assert fromfile.endswith('.pxd.in')
     assert tofile.endswith('.pxd')
-    with open(fromfile, "r") as f:
+    with open(fromfile) as f:
         tmpl = f.read()
     pyxcontent = tempita.sub(tmpl)
     with open(tofile, "w") as f:
@@ -115,7 +115,7 @@ def load_hashes(filename):
     # Return { filename : (sha256 of input, sha256 of output) }
     if os.path.isfile(filename):
         hashes = {}
-        with open(filename, 'r') as f:
+        with open(filename) as f:
             for line in f:
                 filename, inhash, outhash = line.split()
                 hashes[filename] = (inhash, outhash)
