@@ -3942,11 +3942,7 @@ _set_full_args_out(int nout, PyObject *out_obj, ufunc_full_args *full_args)
 static int
 _not_NoValue(PyObject *obj, PyObject **out)
 {
-#if !TARGET_OS_IPHONE
     static PyObject *NoValue = NULL;
-#else
-    static __thread PyObject *NoValue = NULL;
-#endif
     npy_cache_import("numpy", "_NoValue", &NoValue);
     if (NoValue == NULL) {
         return 0;
@@ -5817,11 +5813,7 @@ prepare_input_arguments_for_outer(PyObject *args, PyUFuncObject *ufunc)
 {
     PyArrayObject *ap1 = NULL;
     PyObject *tmp;
-#if !TARGET_OS_IPHONE
     static PyObject *_numpy_matrix;
-#else 
-    static __thread PyObject *_numpy_matrix;
-#endif
     npy_cache_import("numpy", "matrix", &_numpy_matrix);
 
     const char *matrix_deprecation_msg = (
@@ -6998,11 +6990,7 @@ _typecharfromnum(int num) {
 static PyObject *
 ufunc_get_doc(PyUFuncObject *ufunc, void *NPY_UNUSED(ignored))
 {
-#if !TARGET_OS_IPHONE
     static PyObject *_sig_formatter;
-#else
-    static __thread PyObject *_sig_formatter;
-#endif
     PyObject *doc;
 
     npy_cache_import(

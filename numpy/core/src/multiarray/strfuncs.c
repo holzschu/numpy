@@ -58,11 +58,7 @@ PyArray_SetStringFunction(PyObject *op, int repr)
 NPY_NO_EXPORT PyObject *
 array_repr(PyArrayObject *self)
 {
-#if !TARGET_OS_IPHONE
     static PyObject *repr = NULL;
-#else
-    static __thread PyObject *repr = NULL;
-#endif
 
     if (PyArray_ReprFunction != NULL) {
         return PyObject_CallFunctionObjArgs(PyArray_ReprFunction, self, NULL);
@@ -85,11 +81,7 @@ array_repr(PyArrayObject *self)
 NPY_NO_EXPORT PyObject *
 array_str(PyArrayObject *self)
 {
-#if !TARGET_OS_IPHONE
     static PyObject *str = NULL;
-#else
-    static __thread PyObject *str = NULL;
-#endif
 
     if (PyArray_StrFunction != NULL) {
         return PyObject_CallFunctionObjArgs(PyArray_StrFunction, self, NULL);

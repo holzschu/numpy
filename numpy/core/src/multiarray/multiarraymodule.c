@@ -4392,8 +4392,6 @@ array_shares_memory_impl(PyObject *args, PyObject *kwds, Py_ssize_t default_max_
     PyArrayObject * self = NULL;
     PyArrayObject * other = NULL;
     PyObject *max_work_obj = NULL;
-
-    mem_overlap_t result;
 #if !TARGET_OS_IPHONE
     static char *kwlist[] = {"self", "other", "max_work", NULL};
 #else
@@ -4401,6 +4399,7 @@ array_shares_memory_impl(PyObject *args, PyObject *kwds, Py_ssize_t default_max_
     static __thread char *kwlist[] = {"self", "other", "max_work", NULL};
 #endif
 
+    mem_overlap_t result;
     Py_ssize_t max_work;
     NPY_BEGIN_THREADS_DEF;
 
@@ -4480,12 +4479,7 @@ array_shares_memory_impl(PyObject *args, PyObject *kwds, Py_ssize_t default_max_
     }
     else if (result == MEM_OVERLAP_TOO_HARD) {
         if (raise_exceptions) {
-#if !TARGET_OS_IPHONE
 			static PyObject *too_hard_cls = NULL;
-#else
-			// iOS: need caching system on a per-thread basis
-			static __thread PyObject *too_hard_cls = NULL;
-#endif
             npy_cache_import("numpy.exceptions", "TooHardError", &too_hard_cls);
             if (too_hard_cls) {
                 PyErr_SetString(too_hard_cls, "Exceeded max_work");
@@ -4960,7 +4954,6 @@ setup_scalartypes(PyObject *NPY_UNUSED(dict))
     SINGLE_INHERIT(CFloat, ComplexFloating);
     DUAL_INHERIT(CDouble, Complex, ComplexFloating);
     SINGLE_INHERIT(CLongDouble, ComplexFloating);
-
 
     DUAL_INHERIT2(String, String, Character);
     DUAL_INHERIT2(Unicode, Unicode, Character);

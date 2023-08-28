@@ -12,10 +12,17 @@ extern NPY_NO_EXPORT npy_intp REQUIRED_STR_LEN[];
 #define NPY_USE_LEGACY_PROMOTION 0
 #define NPY_USE_WEAK_PROMOTION 1
 #define NPY_USE_WEAK_PROMOTION_AND_WARN 2
+#if !TARGET_OS_IPHONE
 extern NPY_NO_EXPORT int npy_promotion_state;
 extern NPY_NO_EXPORT PyObject *NO_NEP50_WARNING_CTX;
 extern NPY_NO_EXPORT PyObject *npy_DTypePromotionError;
 extern NPY_NO_EXPORT PyObject *npy_UFuncNoLoopError;
+#else
+extern NPY_NO_EXPORT __thread int npy_promotion_state;
+extern NPY_NO_EXPORT __thread PyObject *NO_NEP50_WARNING_CTX;
+extern NPY_NO_EXPORT __thread PyObject *npy_DTypePromotionError;
+extern NPY_NO_EXPORT __thread PyObject *npy_UFuncNoLoopError;
+#endif
 
 NPY_NO_EXPORT int
 npy_give_promotion_warnings(void);

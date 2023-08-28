@@ -259,11 +259,7 @@ get_args_and_kwargs(
 static void
 set_no_matching_types_error(PyObject *public_api, PyObject *types)
 {
-#if !TARGET_OS_IPHONE
     static PyObject *errmsg_formatter = NULL;
-#else 
-    static __thread PyObject *errmsg_formatter = NULL;
-#endif
     /* No acceptable override found, raise TypeError. */
     npy_cache_import("numpy.core._internal",
                      "array_function_errmsg_formatter",

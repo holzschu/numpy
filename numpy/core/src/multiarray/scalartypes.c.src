@@ -529,11 +529,7 @@ _void_to_hex(const char* argbuf, const Py_ssize_t arglen,
 
 static PyObject *
 _void_scalar_repr(PyObject *obj) {
-#if !TARGET_OS_IPHONE
     static PyObject *reprfunc = NULL;
-#else 
-    static __thread PyObject *reprfunc = NULL;
-#endif
     npy_cache_import("numpy.core.arrayprint",
                      "_void_scalar_repr", &reprfunc);
     if (reprfunc == NULL) {
@@ -2866,11 +2862,7 @@ object_arrtype_alloc(PyTypeObject *type, Py_ssize_t items)
      * Object scalars should not actually exist, if they exist we should
      * consider it to be a bug.
      */
-#if !TARGET_OS_IPHONE
     static PyObject *visibleDeprecationWarning = NULL;
-#else
-    static __thread PyObject *visibleDeprecationWarning = NULL;
-#endif
     npy_cache_import("numpy", "VisibleDeprecationWarning",
                      &visibleDeprecationWarning);
     if (visibleDeprecationWarning == NULL) {

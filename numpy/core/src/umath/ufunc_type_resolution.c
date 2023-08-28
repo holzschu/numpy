@@ -76,11 +76,7 @@ npy_casting_to_py_object(NPY_CASTING casting)
  */
 static int
 raise_binary_type_reso_error(PyUFuncObject *ufunc, PyArrayObject **operands) {
-#if !TARGET_OS_IPHONE
     static PyObject *exc_type = NULL;
-#else
-    static __thread PyObject *exc_type = NULL;
-#endif
     PyObject *exc_value;
 
     npy_cache_import(
@@ -112,11 +108,7 @@ NPY_NO_EXPORT int
 raise_no_loop_found_error(
         PyUFuncObject *ufunc, PyObject **dtypes)
 {
-#if !TARGET_OS_IPHONE
     static PyObject *exc_type = NULL;
-#else
-    static __thread PyObject *exc_type = NULL;
-#endif
     npy_intp i;
 
     npy_cache_import(
@@ -125,6 +117,9 @@ raise_no_loop_found_error(
     if (exc_type == NULL) {
         return -1;
     }
+#if TARGET_OS_IPHONE
+	fprintf(stderr, "raise_no_loop_found_error: numpy.core._exceptions._UFuncNoLoopError == %x\n", exc_type);
+#endif
 
     PyObject *dtypes_tup = PyArray_TupleFromItems(ufunc->nargs, dtypes, 1);
     if (dtypes_tup == NULL) {
@@ -188,11 +183,7 @@ raise_input_casting_error(
         PyArray_Descr *to,
         npy_intp i)
 {
-#if !TARGET_OS_IPHONE
     static PyObject *exc_type = NULL;
-#else
-    static __thread PyObject *exc_type = NULL;
-#endif
     npy_cache_import(
         "numpy.core._exceptions", "_UFuncInputCastingError",
         &exc_type);
@@ -215,11 +206,7 @@ raise_output_casting_error(
         PyArray_Descr *to,
         npy_intp i)
 {
-#if !TARGET_OS_IPHONE
     static PyObject *exc_type = NULL;
-#else
-    static __thread PyObject *exc_type = NULL;
-#endif
     npy_cache_import(
         "numpy.core._exceptions", "_UFuncOutputCastingError",
         &exc_type);

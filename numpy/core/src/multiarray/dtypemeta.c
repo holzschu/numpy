@@ -133,7 +133,11 @@ string_unicode_new(PyArray_DTypeMeta *self, PyObject *args, PyObject *kwargs)
 {
     npy_intp size;
 
+#if !TARGET_OS_IPHONE
     static char *kwlist[] = {"", NULL};
+#else
+    static __thread char *kwlist[] = {"", NULL};
+#endif
 
     if (!PyArg_ParseTupleAndKeywords(args, kwargs, "O&", kwlist,
                                      PyArray_IntpFromPyIntConverter, &size)) {
@@ -814,6 +818,12 @@ dtypemeta_wrap_legacy_descriptor(PyArray_Descr *descr,
             .tp_flags = Py_TPFLAGS_DEFAULT,
             .tp_base = &PyArrayDescr_Type,
             .tp_new = (newfunc)legacy_dtype_default_new,
+            .tp_doc = (
+                "DType class corresponding to the scalar type and dtype of "
+                "the same name.\n\n"
+                "Please see `numpy.dtype` for the typical way to create\n"
+                "dtype instances and :ref:`arrays.dtypes` for additional\n"
+                "information."),
         },},
         .flags = NPY_DT_LEGACY,
         /* Further fields are not common between DTypes */

@@ -17,11 +17,7 @@
 static inline int
 npy_ctypes_check(PyTypeObject *obj)
 {
-#if !TARGET_OS_IPHONE
     static PyObject *py_func = NULL;
-#else 
-    static __thread PyObject *py_func = NULL;
-#endif
     PyObject *ret_obj;
     int ret;
 

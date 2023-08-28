@@ -99,7 +99,6 @@ forward_ndarray_method(PyArrayObject *self, PyObject *args, PyObject *kwds,
  * initialization is not thread-safe, but relies on the CPython GIL to
  * be correct.
  */
-#if !TARGET_OS_IPHONE
 #define NPY_FORWARD_NDARRAY_METHOD(name) \
         static PyObject *callable = NULL; \
         npy_cache_import("numpy.core._methods", name, &callable); \
@@ -107,15 +106,6 @@ forward_ndarray_method(PyArrayObject *self, PyObject *args, PyObject *kwds,
             return NULL; \
         } \
         return forward_ndarray_method(self, args, kwds, callable)
-#else
-#define NPY_FORWARD_NDARRAY_METHOD(name) \
-        static __thread PyObject *callable = NULL; \
-        npy_cache_import("numpy.core._methods", name, &callable); \
-        if (callable == NULL) { \
-            return NULL; \
-        } \
-        return forward_ndarray_method(self, args, kwds, callable)
-#endif
 
 
 static PyObject *
@@ -396,11 +386,7 @@ PyArray_GetField(PyArrayObject *self, PyArray_Descr *typed, int offset)
 {
     PyObject *ret = NULL;
     PyObject *safe;
-#if !TARGET_OS_IPHONE
     static PyObject *checkfunc = NULL;
-#else
-    static __thread PyObject *checkfunc = NULL;
-#endif
     int self_elsize, typed_elsize;
 
     if (self == NULL) {
@@ -2373,11 +2359,7 @@ array_setstate(PyArrayObject *self, PyObject *args)
 NPY_NO_EXPORT int
 PyArray_Dump(PyObject *self, PyObject *file, int protocol)
 {
-#if !TARGET_OS_IPHONE
     static PyObject *method = NULL;
-#else
-    static __thread PyObject *method = NULL;
-#endif
     PyObject *ret;
     npy_cache_import("numpy.core._methods", "_dump", &method);
     if (method == NULL) {
@@ -2400,11 +2382,7 @@ PyArray_Dump(PyObject *self, PyObject *file, int protocol)
 NPY_NO_EXPORT PyObject *
 PyArray_Dumps(PyObject *self, int protocol)
 {
-#if !TARGET_OS_IPHONE
     static PyObject *method = NULL;
-#else
-    static __thread PyObject *method = NULL;
-#endif
     npy_cache_import("numpy.core._methods", "_dumps", &method);
     if (method == NULL) {
         return NULL;

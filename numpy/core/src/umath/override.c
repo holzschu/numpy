@@ -187,11 +187,7 @@ copy_positional_args_to_kwargs(const char **keywords,
              * This is only relevant for reduce, which is the only one with
              * 5 keyword arguments.
              */
-#if !TARGET_OS_IPHONE
             static PyObject *NoValue = NULL;
-#else
-            static __thread PyObject *NoValue = NULL;
-#endif
             assert(strcmp(keywords[i], "initial") == 0);
             npy_cache_import("numpy", "_NoValue", &NoValue);
             if (args[i] == NoValue) {
@@ -380,11 +376,7 @@ PyUFunc_CheckOverride(PyUFuncObject *ufunc, char *method,
         /* Check if there is a method left to call */
         if (!override_obj) {
             /* No acceptable override found. */
-#if !TARGET_OS_IPHONE
             static PyObject *errmsg_formatter = NULL;
-#else
-            static __thread PyObject *errmsg_formatter = NULL;
-#endif
             PyObject *errmsg;
 
             npy_cache_import("numpy.core._internal",

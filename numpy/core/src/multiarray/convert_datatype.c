@@ -50,10 +50,17 @@ NPY_NO_EXPORT npy_intp REQUIRED_STR_LEN[] = {0, 3, 5, 10, 10, 20, 20, 20, 20};
 /*
  * Whether or not legacy value-based promotion/casting is used.
  */
+#if !TARGET_OS_IPHONE
 NPY_NO_EXPORT int npy_promotion_state = NPY_USE_LEGACY_PROMOTION;
 NPY_NO_EXPORT PyObject *NO_NEP50_WARNING_CTX = NULL;
 NPY_NO_EXPORT PyObject *npy_DTypePromotionError = NULL;
 NPY_NO_EXPORT PyObject *npy_UFuncNoLoopError = NULL;
+#else
+NPY_NO_EXPORT __thread int npy_promotion_state = NPY_USE_LEGACY_PROMOTION;
+NPY_NO_EXPORT __thread PyObject *NO_NEP50_WARNING_CTX = NULL;
+NPY_NO_EXPORT __thread PyObject *npy_DTypePromotionError = NULL;
+NPY_NO_EXPORT __thread PyObject *npy_UFuncNoLoopError = NULL;
+#endif
 
 
 static PyObject *
@@ -2621,11 +2628,7 @@ complex_to_noncomplex_get_loop(
         PyArrayMethod_StridedLoop **out_loop, NpyAuxData **out_transferdata,
         NPY_ARRAYMETHOD_FLAGS *flags)
 {
-#if !TARGET_OS_IPHONE
     static PyObject *cls = NULL;
-#else
-    static __thread PyObject *cls = NULL;
-#endif
     int ret;
     npy_cache_import("numpy.exceptions", "ComplexWarning", &cls);
     if (cls == NULL) {

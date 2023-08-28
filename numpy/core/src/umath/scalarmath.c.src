@@ -1703,11 +1703,7 @@ static int
 static int
 emit_complexwarning(void)
 {
-#if !TARGET_OS_IPHONE
     static PyObject *cls = NULL;
-#else
-    static __thread PyObject *cls = NULL;
-#endif
     npy_cache_import("numpy.exceptions", "ComplexWarning", &cls);
     if (cls == NULL) {
         return -1;

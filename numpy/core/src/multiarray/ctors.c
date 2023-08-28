@@ -587,11 +587,7 @@ PyArray_AssignFromCache(PyArrayObject *self, coercion_cache_obj *cache) {
 static void
 raise_memory_error(int nd, npy_intp const *dims, PyArray_Descr *descr)
 {
-#if !TARGET_OS_IPHONE
     static PyObject *exc_type = NULL;
-#else
-    static __thread PyObject *exc_type = NULL;
-#endif
 
     npy_cache_import(
         "numpy.core._exceptions", "_ArrayMemoryError",
@@ -907,7 +903,12 @@ PyArray_NewFromDescr_int(
      */
     if (subtype != &PyArray_Type) {
         PyObject *res, *func;
+#if !TARGET_OS_IPHONE
         static PyObject *ndarray_array_finalize = NULL;
+#else
+		// iOS: local static variables must be thread-local
+        static __thread PyObject *ndarray_array_finalize = NULL;
+#endif
         /* First time, cache ndarray's __array_finalize__ */
         if (ndarray_array_finalize == NULL) {
             ndarray_array_finalize = PyObject_GetAttr(

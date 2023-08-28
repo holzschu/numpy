@@ -19,7 +19,14 @@
 static inline void
 npy_cache_import(const char *module, const char *attr, PyObject **cache)
 {
+#if !TARGET_OS_IPHONE
     if (NPY_UNLIKELY(*cache == NULL)) {
+#else 
+		// iOS change: do not use the cache, it will be invalid on the next launch.
+		// We pay a cost in performance, but we gain in memory (otherwise the
+		// cache has to be thread local).
+		{
+#endif
         PyObject *mod = PyImport_ImportModule(module);
 
         if (mod != NULL) {

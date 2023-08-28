@@ -312,5 +312,5 @@ PyArray_API[302] = (void *) PyArray_ResolveWritebackIfCopy;
 PyArray_API[303] = (void *) PyArray_SetWritebackIfCopyBase;
 PyArray_API[304] = (void *) PyDataMem_SetHandler;
 PyArray_API[305] = (void *) PyDataMem_GetHandler;
-PyArray_API[306] = (void *) PyDataMem_DefaultHandler;
+PyArray_API[306] = (PyObject* *) &PyDataMem_DefaultHandler;
 // };

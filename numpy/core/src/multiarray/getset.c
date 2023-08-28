@@ -468,11 +468,7 @@ array_descr_set(PyArrayObject *self, PyObject *arg, void *NPY_UNUSED(ignored))
 
     /* check that we are not reinterpreting memory containing Objects. */
     if (_may_have_objects(PyArray_DESCR(self)) || _may_have_objects(newtype)) {
-#if !TARGET_OS_IPHONE
         static PyObject *checkfunc = NULL;
-#else
-        static __thread PyObject *checkfunc = NULL;
-#endif
         PyObject *safe;
 
         npy_cache_import("numpy.core._internal", "_view_is_safe", &checkfunc);
