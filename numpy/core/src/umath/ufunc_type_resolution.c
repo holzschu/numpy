@@ -117,9 +117,6 @@ raise_no_loop_found_error(
     if (exc_type == NULL) {
         return -1;
     }
-#if TARGET_OS_IPHONE
-	fprintf(stderr, "raise_no_loop_found_error: numpy.core._exceptions._UFuncNoLoopError == %x\n", exc_type);
-#endif
 
     PyObject *dtypes_tup = PyArray_TupleFromItems(ufunc->nargs, dtypes, 1);
     if (dtypes_tup == NULL) {
