@@ -1,6 +1,6 @@
 build_and_store_wheels: &BUILD_AND_STORE_WHEELS
   install_cibuildwheel_script:
-    - python -m pip install cibuildwheel==2.14.0
+    - python -m pip install cibuildwheel
   cibuildwheel_script:
     - cibuildwheel
   wheels_artifacts:
@@ -11,32 +11,36 @@ build_and_store_wheels: &BUILD_AND_STORE_WHEELS
 ######################################################################
 
 linux_aarch64_task:
+  use_compute_credits: $CIRRUS_USER_COLLABORATOR == 'true'
+  env:
+    CIRRUS_CLONE_SUBMODULES: true
   compute_engine_instance:
     image_project: cirrus-images
     image: family/docker-builder-arm64
     architecture: arm64
     platform: linux
-    cpu: 2
-    memory: 8G
+    cpu: 1
+    memory: 4G
   matrix:
     # build in a matrix because building and testing all four wheels in a
     # single task takes longer than 60 mins (the default time limit for a
     # cirrus-ci task).
     - env:
-        CIRRUS_CLONE_SUBMODULES: true
-        CIBW_BUILD: cp39-*
-        EXPECT_CPU_FEATURES: NEON NEON_FP16 NEON_VFPV4 ASIMD ASIMDHP ASIMDDP ASIMDFHM
-    - env:
-        CIRRUS_CLONE_SUBMODULES: true
-        CIBW_BUILD: cp310-*
-    - env:
-        CIRRUS_CLONE_SUBMODULES: true
         CIBW_BUILD: cp311-*
+    - env:
+        CIBW_BUILD: cp312-*
+    - env:
+        CIBW_BUILD: cp313-*
+    - env:
+        CIBW_BUILD: cp313t-*
+        CIBW_FREE_THREADED_SUPPORT: 1
+        CIBW_BUILD_FRONTEND: "pip; args: --no-build-isolation"
 
-  build_script: |
+  initial_setup_script: |
+    apt update
     apt install -y python3-venv python-is-python3 gfortran libatlas-base-dev libgfortran5 eatmydata
     git fetch origin
-    ./tools/travis-before-install.sh
+    bash ./tools/wheels/cibw_before_build.sh ${PWD}
     which python
     echo $CIRRUS_CHANGE_MESSAGE
   <<: *BUILD_AND_STORE_WHEELS
@@ -44,53 +48,65 @@ linux_aarch64_task:
 
 ######################################################################
 # Build macosx_arm64 natively
+#
+# macosx_arm64 for macos >= 14 used to be built here, but are now
+# built on GHA.
 ######################################################################
 
 macosx_arm64_task:
+  use_compute_credits: $CIRRUS_USER_COLLABORATOR == 'true'
+  env:
+      CIRRUS_CLONE_SUBMODULES: true
   macos_instance:
-    image: ghcr.io/cirruslabs/macos-monterey-xcode:14
+    matrix:
+      image: ghcr.io/cirruslabs/macos-monterey-xcode
+
   matrix:
     - env:
-        CIRRUS_CLONE_SUBMODULES: true
-        CIBW_BUILD: cp39-*
+        CIBW_BUILD: cp311-* cp312*
     - env:
-        CIRRUS_CLONE_SUBMODULES: true
-        CIBW_BUILD: cp310-* cp311-*
+        CIBW_BUILD: cp313-*
+    - env:
+        CIBW_BUILD: cp313t-*
+        CIBW_FREE_THREADED_SUPPORT: 1
+        CIBW_BUILD_FRONTEND: "pip; args: --no-build-isolation"
   env:
-    PATH: /opt/homebrew/opt/python@3.10/bin:/usr/local/lib:/usr/local/include:$PATH
+    PATH: /usr/local/lib:/usr/local/include:$PATH
     CIBW_ARCHS: arm64
-    # Specifying CIBW_ENVIRONMENT_MACOS overrides pyproject.toml, so include
-    # all the settings from there, otherwise they're lost.
-    # SDKROOT needs to be set for repackaged conda-forge gfortran compilers
-    # supplied by isuruf.
-    # Find out SDKROOT via `xcrun --sdk macosx --show-sdk-path`
-    CIBW_ENVIRONMENT_MACOS: >
-      RUNNER_OS=macOS
-      SDKROOT=/Applications/Xcode-14.0.0.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX12.3.sdk
-      LD_LIBRARY_PATH=/usr/local/lib:$LD_LIBRARY_PATH
-      CFLAGS="-std=c99 -fno-strict-aliasing"
-      OPENBLAS64_="/usr/local"
-      NPY_USE_BLAS_ILP64="1"
 
-  build_script:
-    - brew install python@3.10
-    - ln -s python3 /opt/homebrew/opt/python@3.10/bin/python
-    - which python
+  build_script: |
+    brew install micromamba gfortran
+    micromamba shell init -s bash --root-prefix ~/micromamba
+    source ~/.bash_profile
+    
+    micromamba create -n numpydev
+    micromamba activate numpydev
+    micromamba install -y -c conda-forge python=3.11 2>/dev/null
+    
+    # Use scipy-openblas wheels
+    export INSTALL_OPENBLAS=true
+    export CIBW_ENVIRONMENT_MACOS="MACOSX_DEPLOYMENT_TARGET='11.0' INSTALL_OPENBLAS=true RUNNER_OS=macOS PKG_CONFIG_PATH=$PWD/.openblas"
+
     # needed for submodules
-    - git submodule update --init
+    git submodule update --init
     # need to obtain all the tags so setup.py can determine FULLVERSION
-    - git fetch origin
-    - uname -m
-    - python -c "import platform;print(platform.python_version());print(platform.system());print(platform.machine())"
-    - clang --version
-  <<: *BUILD_AND_STORE_WHEELS
+    git fetch origin
+    uname -m
+    python -c "import platform;print(platform.python_version());print(platform.system());print(platform.machine())"
+    clang --version
 
+    python -m pip install cibuildwheel
+    cibuildwheel
+
+  wheels_artifacts:
+    path: "wheelhouse/*"
 
 ######################################################################
 # Upload all wheels
 ######################################################################
 
 wheels_upload_task:
+  use_compute_credits: $CIRRUS_USER_COLLABORATOR == 'true'
   # Artifacts don't seem to be persistent from task to task.
   # Rather than upload wheels at the end of each cibuildwheel run we do a
   # final upload here. This is because a run may be on different OS for
@@ -106,7 +122,7 @@ wheels_upload_task:
 
   env:
     NUMPY_STAGING_UPLOAD_TOKEN: ENCRYPTED[!5a69522ae0c2af9edb2bc1cdfeaca6292fb3666d9ecd82dca0615921834a6ce3b702352835d8bde4ea2a9ed5ef8424ac!]
-    NUMPY_NIGHTLY_UPLOAD_TOKEN: ENCRYPTED[!196422e6c3419a3b1d79815e1026094a215cb0f346fe34ed0f9d3ca1c19339df7398d04556491b1e0420fc1fe3713289!]
+    NUMPY_NIGHTLY_UPLOAD_TOKEN: ENCRYPTED[4376691390321cd5e76613ec21de8456cc0af0164971dd9542f985a017dc30ccb4d40e60f59184618e2d55afd63e93b7]
 
   upload_script: |
     apt-get update
@@ -115,7 +131,7 @@ wheels_upload_task:
     export IS_PUSH="false"
 
     # cron job
-    if [[ "$CIRRUS_CRON" == "weekly" ]]; then
+    if [[ "$CIRRUS_CRON" == "nightly" ]]; then
       export IS_SCHEDULE_DISPATCH="true"
     fi
 
@@ -139,9 +155,7 @@ wheels_upload_task:
         bash miniconda.sh -b -p $HOME/miniconda3
         $HOME/miniconda3/bin/conda init bash
         source $HOME/miniconda3/bin/activate
-        #conda install -y anaconda-client
-        # pin urllib3 until anaconda-client is fixed upstream
-        conda install -y anaconda-client 'urllib3<2.0.0'
+        conda install -y anaconda-client
 
         # The name of the zip file is derived from the `wheels_artifact` line.
         # If you change the artifact line to `myfile_artifact` then it would be

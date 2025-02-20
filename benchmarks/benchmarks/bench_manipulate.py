@@ -4,25 +4,23 @@ import numpy as np
 from collections import deque
 
 class BroadcastArrays(Benchmark):
-    params = [[(16, 32), (32, 64),
-               (64, 128), (128, 256),
-               (256, 512), (512, 1024)],
+    params = [[(16, 32), (128, 256), (512, 1024)],
               TYPES1]
     param_names = ['shape', 'ndtype']
     timeout = 10
 
     def setup(self, shape, ndtype):
-        self.xarg = np.random.ranf(shape[0]*shape[1]).reshape(shape)
+        self.xarg = np.random.ranf(shape[0] * shape[1]).reshape(shape)
         self.xarg = self.xarg.astype(ndtype)
         if ndtype.startswith('complex'):
-            self.xarg += np.random.ranf(1)*1j
+            self.xarg += np.random.ranf(1) * 1j
 
     def time_broadcast_arrays(self, shape, ndtype):
         np.broadcast_arrays(self.xarg, np.ones(1))
 
 
 class BroadcastArraysTo(Benchmark):
-    params = [[16, 32, 64, 128, 256, 512],
+    params = [[16, 64, 512],
               TYPES1]
     param_names = ['size', 'ndtype']
     timeout = 10
@@ -32,26 +30,25 @@ class BroadcastArraysTo(Benchmark):
         self.xarg = self.rng.random(size)
         self.xarg = self.xarg.astype(ndtype)
         if ndtype.startswith('complex'):
-            self.xarg += self.rng.random(1)*1j
+            self.xarg += self.rng.random(1) * 1j
 
     def time_broadcast_to(self, size, ndtype):
         np.broadcast_to(self.xarg, (size, size))
 
 
 class ConcatenateStackArrays(Benchmark):
-    # (64, 128), (128, 256), (256, 512)
     params = [[(16, 32), (32, 64)],
-              [2, 3, 4, 5],
+              [2, 5],
               TYPES1]
     param_names = ['shape', 'narrays', 'ndtype']
     timeout = 10
 
     def setup(self, shape, narrays, ndtype):
-        self.xarg = [np.random.ranf(shape[0]*shape[1]).reshape(shape)
+        self.xarg = [np.random.ranf(shape[0] * shape[1]).reshape(shape)
                      for x in range(narrays)]
         self.xarg = [x.astype(ndtype) for x in self.xarg]
         if ndtype.startswith('complex'):
-            [x + np.random.ranf(1)*1j for x in self.xarg]
+            [x + np.random.ranf(1) * 1j for x in self.xarg]
 
     def time_concatenate_ax0(self, size, narrays, ndtype):
         np.concatenate(self.xarg, axis=0)
@@ -64,6 +61,11 @@ class ConcatenateStackArrays(Benchmark):
 
     def time_stack_ax1(self, size, narrays, ndtype):
         np.stack(self.xarg, axis=1)
+
+
+class ConcatenateNestedArrays(ConcatenateStackArrays):
+    # Large number of small arrays to test GIL (non-)release
+    params = [[(1, 1)], [1000, 100000], TYPES1]
 
 
 class DimsManipulations(Benchmark):

@@ -698,7 +698,7 @@ L10:
 doublereal dlamc3_(doublereal *a, doublereal *b)
 {
     /* System generated locals */
-    doublereal ret_val;
+    volatile doublereal ret_val;
 
 
 /*
@@ -1774,7 +1774,7 @@ L10:
 doublereal slamc3_(real *a, real *b)
 {
     /* System generated locals */
-    real ret_val;
+    volatile real ret_val;
 
 
 /*

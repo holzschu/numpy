@@ -194,8 +194,8 @@ concepts to remember include:
 - If the selection tuple has all entries ``:`` except the
   *p*-th entry which is a slice object ``i:j:k``,
   then the returned array has dimension *N* formed by
-  concatenating the sub-arrays returned by integer indexing of
-  elements *i*, *i+k*, ..., *i + (m - 1) k < j*,
+  stacking, along the *p*-th axis, the sub-arrays returned by integer
+  indexing of elements *i*, *i+k*, ..., *i + (m - 1) k < j*.
 
 - Basic slicing with more than one non-``:`` entry in the slicing
   tuple, acts like repeated application of slicing using a single
@@ -383,8 +383,8 @@ with y::
 
     >>> y[np.array([0, 2, 4])]
     array([[ 0,  1,  2,  3,  4,  5,  6],
-          [14, 15, 16, 17, 18, 19, 20],
-          [28, 29, 30, 31, 32, 33, 34]])
+           [14, 15, 16, 17, 18, 19, 20],
+           [28, 29, 30, 31, 32, 33, 34]])
 
 It results in the construction of a new array where each value of the
 index array selects one row from the array being indexed and the resultant
@@ -491,7 +491,7 @@ regardless of whether those values are :py:data:`True` or
 
 A common use case for this is filtering for desired element values.
 For example, one may wish to select all entries from an array which
-are not :const:`NaN`::
+are not :const:`numpy.nan`::
 
     >>> x = np.array([[1., 2.], [np.nan, 3.], [np.nan, np.nan]])
     >>> x[~np.isnan(x)]
@@ -665,11 +665,11 @@ behave just like slicing).
 
 .. rubric:: Example
 
-Suppose ``x.shape`` is (10, 20, 30) and ``ind`` is a (2, 3, 4)-shaped
+Suppose ``x.shape`` is (10, 20, 30) and ``ind`` is a (2, 5, 2)-shaped
 indexing :class:`intp` array, then ``result = x[..., ind, :]`` has
-shape (10, 2, 3, 4, 30) because the (20,)-shaped subspace has been
-replaced with a (2, 3, 4)-shaped broadcasted indexing subspace. If
-we let *i, j, k* loop over the (2, 3, 4)-shaped subspace then
+shape (10, 2, 5, 2, 30) because the (20,)-shaped subspace has been
+replaced with a (2, 5, 2)-shaped broadcasted indexing subspace. If
+we let *i, j, k* loop over the (2, 5, 2)-shaped subspace then
 ``result[..., i, j, k, :] = x[..., ind[i, j, k], :]``. This example
 produces the same result as :meth:`x.take(ind, axis=-2) <ndarray.take>`.
 
@@ -743,7 +743,7 @@ For example::
 
 .. _flat-iterator-indexing:
 
-Flat Iterator indexing
+Flat iterator indexing
 ----------------------
 
 :attr:`x.flat <ndarray.flat>` returns an iterator that will iterate
@@ -785,7 +785,7 @@ exceptions (assigning complex to floats or ints): ::
  >>> x[1] = 1.2
  >>> x[1]
  1
- >>> x[1] = 1.2j
+ >>> x[1] = 1.2j  # doctest: +IGNORE_EXCEPTION_DETAIL
  Traceback (most recent call last):
    ...
  TypeError: can't convert complex to int

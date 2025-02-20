@@ -1,6 +1,5 @@
 import numpy as np
 import random
-import os
 from functools import lru_cache
 from pathlib import Path
 
@@ -22,10 +21,8 @@ TYPES1 = [
     'int16', 'float16',
     'int32', 'float32',
     'int64', 'float64',  'complex64',
-    'longdouble', 'complex128',
+    'complex128',
 ]
-if 'complex256' in np.sctypeDict:
-    TYPES1.append('clongdouble')
 
 DLPACK_TYPES = [
     'int16', 'float16',
@@ -43,8 +40,8 @@ CACHE_ROOT = Path(__file__).resolve().parent.parent / 'env' / 'numpy_benchdata'
 
 @lru_cache(typed=True)
 def get_values():
-    rnd = np.random.RandomState(1)
-    values = np.tile(rnd.uniform(0, 100, size=nx*ny//10), 10)
+    rnd = np.random.RandomState(1804169117)
+    values = np.tile(rnd.uniform(0, 100, size=nx * ny // 10), 10)
     return values
 
 
@@ -56,13 +53,13 @@ def get_square(dtype):
     # adjust complex ones to have non-degenerated imagery part -- use
     # original data transposed for that
     if arr.dtype.kind == 'c':
-        arr += arr.T*1j
+        arr += arr.T * 1j
 
     return arr
 
 @lru_cache(typed=True)
 def get_squares():
-    return {t: get_square(t) for t in TYPES1}
+    return {t: get_square(t) for t in sorted(TYPES1)}
 
 
 @lru_cache(typed=True)
@@ -74,14 +71,7 @@ def get_square_(dtype):
 @lru_cache(typed=True)
 def get_squares_():
     # smaller squares
-    return {t: get_square_(t) for t in TYPES1}
-
-
-@lru_cache(typed=True)
-def get_vectors():
-    # vectors
-    vectors = {t: s[0] for t, s in get_squares().items()}
-    return vectors
+    return {t: get_square_(t) for t in sorted(TYPES1)}
 
 
 @lru_cache(typed=True)
@@ -213,7 +203,7 @@ def get_data(size, dtype, ip_num=0, zeros=False, finite=True, denormal=False):
             rands += [np.zeros(lsize, dtype)]
         stride = len(rands)
         for start, r in enumerate(rands):
-            array[start:len(r)*stride:stride] = r
+            array[start:len(r) * stride:stride] = r
 
     if not CACHE_ROOT.exists():
         CACHE_ROOT.mkdir(parents=True)

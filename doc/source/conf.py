@@ -2,6 +2,9 @@ import os
 import re
 import sys
 import importlib
+from docutils import nodes
+from docutils.parsers.rst import Directive
+from datetime import datetime
 
 # Minimum version, enforced by sphinx
 needs_sphinx = '4.3'
@@ -30,7 +33,6 @@ def replace_scalar_type_names():
         ('ob_type', ctypes.POINTER(PyTypeObject)),
     ]
 
-
     PyTypeObject._fields_ = [
         # varhead
         ('ob_base', PyObject),
@@ -38,10 +40,6 @@ def replace_scalar_type_names():
         # declaration
         ('tp_name', ctypes.c_char_p),
     ]
-
-    # prevent numpy attaching docstrings to the scalar types
-    assert 'numpy.core._add_newdocs_scalars' not in sys.modules
-    sys.modules['numpy.core._add_newdocs_scalars'] = object()
 
     import numpy
 
@@ -56,9 +54,6 @@ def replace_scalar_type_names():
         c_typ = PyTypeObject.from_address(id(typ))
         c_typ.tp_name = _name_cache[typ] = b"numpy." + name.encode('utf8')
 
-    # now generate the docstrings as usual
-    del sys.modules['numpy.core._add_newdocs_scalars']
-    import numpy.core._add_newdocs_scalars
 
 replace_scalar_type_names()
 
@@ -91,7 +86,10 @@ extensions = [
     'IPython.sphinxext.ipython_console_highlighting',
     'IPython.sphinxext.ipython_directive',
     'sphinx.ext.mathjax',
+    'sphinx_copybutton',
     'sphinx_design',
+    'sphinx.ext.imgconverter',
+    'jupyterlite_sphinx',
 ]
 
 skippable_extensions = [
@@ -112,7 +110,8 @@ source_suffix = '.rst'
 
 # General substitutions.
 project = 'NumPy'
-copyright = '2008-2022, NumPy Developers'
+year = datetime.now().year
+copyright = f'2008-{year}, NumPy Developers'
 
 # The default replacements for |version| and |release|, also used in various
 # other places throughout the built documents.
@@ -141,6 +140,10 @@ default_role = "autolink"
 # for source files.
 exclude_dirs = []
 
+exclude_patterns = []
+if sys.version_info[:2] >= (3, 12):
+    exclude_patterns += ["reference/distutils.rst"]
+
 # If true, '()' will be appended to :func: etc. cross-reference text.
 add_function_parentheses = False
 
@@ -152,10 +155,64 @@ add_function_parentheses = False
 # output. They are ignored by default.
 #show_authors = False
 
+class LegacyDirective(Directive):
+    """
+    Adapted from docutils/parsers/rst/directives/admonitions.py
+
+    Uses a default text if the directive does not have contents. If it does,
+    the default text is concatenated to the contents.
+
+    See also the same implementation in SciPy's conf.py.
+    """
+    has_content = True
+    node_class = nodes.admonition
+    optional_arguments = 1
+
+    def run(self):
+        try:
+            obj = self.arguments[0]
+        except IndexError:
+            # Argument is empty; use default text
+            obj = "submodule"
+        text = (f"This {obj} is considered legacy and will no longer receive "
+                "updates. This could also mean it will be removed in future "
+                "NumPy versions.")
+
+        try:
+            self.content[0] = text + " " + self.content[0]
+        except IndexError:
+            # Content is empty; use the default text
+            source, lineno = self.state_machine.get_source_and_line(
+                self.lineno
+            )
+            self.content.append(
+                text,
+                source=source,
+                offset=lineno
+            )
+        text = '\n'.join(self.content)
+        # Create the admonition node, to be populated by `nested_parse`
+        admonition_node = self.node_class(rawsource=text)
+        # Set custom title
+        title_text = "Legacy"
+        textnodes, _ = self.state.inline_text(title_text, self.lineno)
+        title = nodes.title(title_text, '', *textnodes)
+        # Set up admonition node
+        admonition_node += title
+        # Select custom class for CSS styling
+        admonition_node['classes'] = ['admonition-legacy']
+        # Parse the directive contents
+        self.state.nested_parse(self.content, self.content_offset,
+                                admonition_node)
+        return [admonition_node]
+
+
 def setup(app):
     # add a config value for `ifconfig` directives
     app.add_config_value('python_version_major', str(sys.version_info.major), 'env')
     app.add_lexer('NumPyC', NumPyLexer)
+    app.add_directive("legacy", LegacyDirective)
+
 
 # While these objects do have type `module`, the names are aliases for modules
 # elsewhere. Sphinx does not support referring to modules by an aliases name,
@@ -183,22 +240,30 @@ else:
     switcher_version = f"{version}"
 
 html_theme_options = {
-  "logo": {
-      "image_light": "numpylogo.svg",
-      "image_dark": "numpylogo_dark.svg",
-  },
-  "github_url": "https://github.com/numpy/numpy",
-  "twitter_url": "https://twitter.com/numpy_team",
-  "collapse_navigation": True,
-  "external_links": [
-      {"name": "Learn", "url": "https://numpy.org/numpy-tutorials/"}
-      ],
-  # Add light/dark mode and documentation version switcher:
-  "navbar_end": ["theme-switcher", "version-switcher", "navbar-icon-links"],
-  "switcher": {
-      "version_match": switcher_version,
-      "json_url": "https://numpy.org/doc/_static/versions.json",
-  },
+    "logo": {
+        "image_light": "_static/numpylogo.svg",
+        "image_dark": "_static/numpylogo_dark.svg",
+    },
+    "github_url": "https://github.com/numpy/numpy",
+    "collapse_navigation": True,
+    "external_links": [
+        {"name": "Learn", "url": "https://numpy.org/numpy-tutorials/"},
+        {"name": "NEPs", "url": "https://numpy.org/neps"},
+    ],
+    "header_links_before_dropdown": 6,
+    # Add light/dark mode and documentation version switcher:
+    "navbar_end": [
+        "search-button",
+        "theme-switcher",
+        "version-switcher",
+        "navbar-icon-links"
+    ],
+    "navbar_persistent": [],
+    "switcher": {
+        "version_match": switcher_version,
+        "json_url": "https://numpy.org/doc/_static/versions.json",
+    },
+    "show_version_warning_banner": True,
 }
 
 html_title = "%s v%s Manual" % (project, version)
@@ -222,6 +287,9 @@ mathjax_path = "scipy-mathjax/MathJax.js?config=scipy-mathjax"
 plot_html_show_formats = False
 plot_html_show_source_link = False
 
+# sphinx-copybutton configurations
+copybutton_prompt_text = r">>> |\.\.\. |\$ |In \[\d*\]: | {2,5}\.\.\.: | {5,8}: "
+copybutton_prompt_is_regexp = True
 # -----------------------------------------------------------------------------
 # LaTeX output
 # -----------------------------------------------------------------------------
@@ -321,7 +389,7 @@ latex_use_modindex = False
 # -----------------------------------------------------------------------------
 
 texinfo_documents = [
-  ("contents", 'numpy', 'NumPy Documentation', _stdauthor, 'NumPy',
+  ("index", 'numpy', 'NumPy Documentation', _stdauthor, 'NumPy',
    "NumPy: array processing for numbers, strings, records, and objects.",
    'Programming',
    1),
@@ -366,14 +434,11 @@ autosummary_generate = True
 # -----------------------------------------------------------------------------
 # Coverage checker
 # -----------------------------------------------------------------------------
-coverage_ignore_modules = r"""
-    """.split()
-coverage_ignore_functions = r"""
-    test($|_) (some|all)true bitwise_not cumproduct pkgload
-    generic\.
-    """.split()
-coverage_ignore_classes = r"""
-    """.split()
+coverage_ignore_modules = []
+coverage_ignore_functions = [
+	'test($|_)', '(some|all)true', 'bitwise_not', 'cumproduct', 'pkgload', 'generic\\.'
+]
+coverage_ignore_classes = []
 
 coverage_c_path = []
 coverage_c_regexes = {}
@@ -391,7 +456,7 @@ plot_include_source = True
 plot_formats = [('png', 100), 'pdf']
 
 import math
-phi = (math.sqrt(5) + 1)/2
+phi = (math.sqrt(5) + 1) / 2
 
 plot_rcparams = {
     'font.size': 8,
@@ -400,7 +465,7 @@ plot_rcparams = {
     'xtick.labelsize': 8,
     'ytick.labelsize': 8,
     'legend.fontsize': 8,
-    'figure.figsize': (3*phi, 3),
+    'figure.figsize': (3 * phi, 3),
     'figure.subplot.bottom': 0.2,
     'figure.subplot.left': 0.2,
     'figure.subplot.right': 0.9,
@@ -430,9 +495,9 @@ else:
 
 def _get_c_source_file(obj):
     if issubclass(obj, numpy.generic):
-        return r"core/src/multiarray/scalartypes.c.src"
+        return r"_core/src/multiarray/scalartypes.c.src"
     elif obj is numpy.ndarray:
-        return r"core/src/multiarray/arrayobject.c"
+        return r"_core/src/multiarray/arrayobject.c"
     else:
         # todo: come up with a better way to generate these
         return None
@@ -507,8 +572,9 @@ def linkcode_resolve(domain, info):
         return "https://github.com/numpy/numpy/blob/v%s/numpy/%s%s" % (
            numpy.__version__, fn, linespec)
 
+
 from pygments.lexers import CLexer
-from pygments.lexer import inherit, bygroups
+from pygments.lexer import inherit
 from pygments.token import Comment
 
 class NumPyLexer(CLexer):
@@ -525,6 +591,28 @@ class NumPyLexer(CLexer):
 # -----------------------------------------------------------------------------
 # Breathe & Doxygen
 # -----------------------------------------------------------------------------
-breathe_projects = dict(numpy=os.path.join("..", "build", "doxygen", "xml"))
+breathe_projects = {'numpy': os.path.join("..", "build", "doxygen", "xml")}
 breathe_default_project = "numpy"
 breathe_default_members = ("members", "undoc-members", "protected-members")
+
+# See https://github.com/breathe-doc/breathe/issues/696
+nitpick_ignore = [
+    ('c:identifier', 'FILE'),
+    ('c:identifier', 'size_t'),
+    ('c:identifier', 'PyHeapTypeObject'),
+]
+
+# -----------------------------------------------------------------------------
+# Interactive documentation examples via JupyterLite
+# -----------------------------------------------------------------------------
+
+global_enable_try_examples = True
+try_examples_global_button_text = "Try it in your browser!"
+try_examples_global_warning_text = (
+    "NumPy's interactive examples are experimental and may not always work"
+    " as expected, with high load times especially on low-resource platforms,"
+    " and the version of NumPy might not be in sync with the one you are"
+    " browsing the documentation for. If you encounter any issues, please"
+    " report them on the"
+    " [NumPy issue tracker](https://github.com/numpy/numpy/issues)."
+)

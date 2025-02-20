@@ -10,7 +10,7 @@ day-to-day development.
 These are used more rarely, for example close to a new NumPy release,
 or when a large or particular complex change was made.
 
-Since not all of these tools are used on a regular bases and only available
+Since not all of these tools are used on a regular basis and only available
 on some systems, please expect differences, issues, or quirks;
 we will be happy to help if you get stuck and appreciate any improvements
 or suggestions to these workflows.
@@ -113,7 +113,7 @@ or ``pytest`` updates).
 
 This allows to run the test suite, or part of it, conveniently::
 
-    python3.8d runtests.py -t numpy/core/tests/test_multiarray.py -- -R2:3 -s
+    python3.8d runtests.py -t numpy/_core/tests/test_multiarray.py -- -R2:3 -s
 
 where ``-R2:3`` is the ``pytest-leaks`` command (see its documentation), the
 ``-s`` causes output to print and may be necessary (in some versions captured
@@ -188,8 +188,8 @@ Use together with ``pytest``
 You can run the test suite with valgrind which may be sufficient
 when you are only interested in a few tests::
 
-    PYTHOMMALLOC=malloc valgrind python runtests.py \
-     -t numpy/core/tests/test_multiarray.py -- --continue-on-collection-errors
+    PYTHONMALLOC=malloc valgrind python runtests.py \
+     -t numpy/_core/tests/test_multiarray.py -- --continue-on-collection-errors
 
 Note the ``--continue-on-collection-errors``, which is currently necessary due to
 missing ``longdouble`` support causing failures (this will usually not be
