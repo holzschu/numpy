@@ -43,6 +43,7 @@ NPY_NO_EXPORT int NPY_NUMUSERTYPES = 0;
 #include "arraytypes.h"
 #include "arrayobject.h"
 #include "array_converter.h"
+#include "blas_utils.h"
 #include "hashdescr.h"
 #include "descriptor.h"
 #include "dragon4.h"
@@ -101,6 +102,8 @@ NPY_NO_EXPORT void reset_PyArrayIter_Type(void);
 NPY_NO_EXPORT void reset_PyArrayDTypeMeta_Type(void);
 #endif
 #include "umathmodule.h"
+
+#include "unique.h"
 
 /*
  *****************************************************************************
@@ -687,10 +690,17 @@ PyArray_ConcatenateInto(PyObject *op,
     }
 
     /* Convert the input list into arrays */
-    narrays = PySequence_Size(op);
-    if (narrays < 0) {
+    Py_ssize_t narrays_true = PySequence_Size(op);
+    if (narrays_true < 0) {
         return NULL;
     }
+    else if (narrays_true > NPY_MAX_INT) {
+        PyErr_Format(PyExc_ValueError,
+            "concatenate() only supports up to %d arrays but got %zd.",
+            NPY_MAX_INT, narrays_true);
+        return NULL;
+    }
+    narrays = (int)narrays_true;
     arrays = PyArray_malloc(narrays * sizeof(arrays[0]));
     if (arrays == NULL) {
         PyErr_NoMemory();
@@ -1106,6 +1116,8 @@ PyArray_MatrixProduct2(PyObject *op1, PyObject *op2, PyArrayObject* out)
         Py_DECREF(it1);
         goto fail;
     }
+
+    npy_clear_floatstatus_barrier((char *) result);
     NPY_BEGIN_THREADS_DESCR(PyArray_DESCR(ap2));
     while (it1->index < it1->size) {
         while (it2->index < it2->size) {
@@ -1121,6 +1133,11 @@ PyArray_MatrixProduct2(PyObject *op1, PyObject *op2, PyArrayObject* out)
     Py_DECREF(it2);
     if (PyErr_Occurred()) {
         /* only for OBJECT arrays */
+        goto fail;
+    }
+
+    int fpes = npy_get_floatstatus_barrier((char *) result);
+    if (fpes && PyUFunc_GiveFloatingpointErrors("dot", fpes) < 0) {
         goto fail;
     }
     Py_DECREF(ap1);
@@ -1219,6 +1236,7 @@ _pyarray_correlate(PyArrayObject *ap1, PyArrayObject *ap2, int typenum,
         goto clean_ret;
     }
 
+    int needs_pyapi = PyDataType_FLAGCHK(PyArray_DESCR(ret), NPY_NEEDS_PYAPI);
     NPY_BEGIN_THREADS_DESCR(PyArray_DESCR(ret));
     is1 = PyArray_STRIDES(ap1)[0];
     is2 = PyArray_STRIDES(ap2)[0];
@@ -1229,6 +1247,9 @@ _pyarray_correlate(PyArrayObject *ap1, PyArrayObject *ap2, int typenum,
     n = n - n_left;
     for (i = 0; i < n_left; i++) {
         dot(ip1, is1, ip2, is2, op, n, ret);
+        if (needs_pyapi && PyErr_Occurred()) {
+            goto done;
+        }
         n++;
         ip2 -= is2;
         op += os;
@@ -1240,19 +1261,21 @@ _pyarray_correlate(PyArrayObject *ap1, PyArrayObject *ap2, int typenum,
         op += os * (n1 - n2 + 1);
     }
     else {
-        for (i = 0; i < (n1 - n2 + 1); i++) {
+        for (i = 0; i < (n1 - n2 + 1) && (!needs_pyapi || !PyErr_Occurred());
+             i++) {
             dot(ip1, is1, ip2, is2, op, n, ret);
             ip1 += is1;
             op += os;
         }
     }
-    for (i = 0; i < n_right; i++) {
+    for (i = 0; i < n_right && (!needs_pyapi || !PyErr_Occurred()); i++) {
         n--;
         dot(ip1, is1, ip2, is2, op, n, ret);
         ip1 += is1;
         op += os;
     }
 
+done:
     NPY_END_THREADS_DESCR(PyArray_DESCR(ret));
     if (PyErr_Occurred()) {
         goto clean_ret;
@@ -2292,14 +2315,18 @@ array_count_nonzero(PyObject *NPY_UNUSED(self), PyObject *const *args, Py_ssize_
         return NULL;
     }
 
-    count =  PyArray_CountNonzero(array);
-
+    count = PyArray_CountNonzero(array);
     Py_DECREF(array);
 
     if (count == -1) {
         return NULL;
     }
-    return PyLong_FromSsize_t(count);
+
+    PyArray_Descr *descr = PyArray_DescrFromType(NPY_INTP);
+    if (descr == NULL) {
+        return NULL;
+    }
+    return PyArray_Scalar(&count, descr, NULL);
 }
 
 static PyObject *
@@ -3617,24 +3644,28 @@ static PyObject *
 array_result_type(PyObject *NPY_UNUSED(dummy), PyObject *const *args, Py_ssize_t len)
 {
     npy_intp i, narr = 0, ndtypes = 0;
-    PyArrayObject **arr = NULL;
-    PyArray_Descr **dtypes = NULL;
     PyObject *ret = NULL;
 
     if (len == 0) {
         PyErr_SetString(PyExc_ValueError,
                         "at least one array or dtype is required");
-        goto finish;
+        return NULL;
     }
 
-    arr = PyArray_malloc(2 * len * sizeof(void *));
+    NPY_ALLOC_WORKSPACE(arr, PyArrayObject *, 2 * 3, 2 * len);
     if (arr == NULL) {
-        return PyErr_NoMemory();
+        return NULL;
     }
-    dtypes = (PyArray_Descr**)&arr[len];
+    PyArray_Descr **dtypes = (PyArray_Descr**)&arr[len];
+
+    PyObject *previous_obj = NULL;
 
     for (i = 0; i < len; ++i) {
         PyObject *obj = args[i];
+        if (obj == previous_obj) {
+            continue;
+        }
+
         if (PyArray_Check(obj)) {
             Py_INCREF(obj);
             arr[narr] = (PyArrayObject *)obj;
@@ -3670,7 +3701,7 @@ finish:
     for (i = 0; i < ndtypes; ++i) {
         Py_DECREF(dtypes[i]);
     }
-    PyArray_free(arr);
+    npy_free_workspace(arr);
     return ret;
 }
 
@@ -4619,6 +4650,8 @@ static struct PyMethodDef array_module_methods[] = {
         "Give a warning on reload and big warning in sub-interpreters."},
     {"from_dlpack", (PyCFunction)from_dlpack,
         METH_FASTCALL | METH_KEYWORDS, NULL},
+    {"_unique_hash",  (PyCFunction)array__unique_hash,
+        METH_O, "Collect unique values via a hash map."},
     {NULL, NULL, 0, NULL}                /* sentinel */
 };
 
@@ -4862,6 +4895,10 @@ PyMODINIT_FUNC PyInit__multiarray_umath(void) {
     if (npy_cpu_dispatch_tracer_init(m) < 0) {
         goto err;
     }
+
+#if NPY_BLAS_CHECK_FPE_SUPPORT
+    npy_blas_init();
+#endif
 
 #if defined(MS_WIN64) && defined(__GNUC__)
   PyErr_WarnEx(PyExc_Warning,

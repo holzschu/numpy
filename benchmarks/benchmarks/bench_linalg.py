@@ -1,6 +1,6 @@
-from .common import Benchmark, get_squares_, get_indexes_rand, TYPES1
-
 import numpy as np
+
+from .common import TYPES1, Benchmark, get_indexes_rand, get_squares_
 
 
 class Eindot(Benchmark):
@@ -103,6 +103,8 @@ class LinalgNorm(Benchmark):
 class LinalgSmallArrays(Benchmark):
     """ Test overhead of linalg methods for small arrays """
     def setup(self):
+        self.array_3_3 = np.eye(3) + np.arange(9.).reshape((3, 3))
+        self.array_3 = np.arange(3.)
         self.array_5 = np.arange(5.)
         self.array_5_5 = np.reshape(np.arange(25.), (5, 5))
 
@@ -111,6 +113,16 @@ class LinalgSmallArrays(Benchmark):
 
     def time_det_small_array(self):
         np.linalg.det(self.array_5_5)
+
+    def time_det_3x3(self):
+        np.linalg.det(self.array_3_3)
+
+    def time_solve_3x3(self):
+        np.linalg.solve(self.array_3_3, self.array_3)
+
+    def time_eig_3x3(self):
+        np.linalg.eig(self.array_3_3)
+
 
 class Lstsq(Benchmark):
     def setup(self):
@@ -190,7 +202,7 @@ class Einsum(Benchmark):
     def time_einsum_noncon_contig_contig(self, dtype):
         np.einsum("ji,i->", self.non_contiguous_dim2, self.non_contiguous_dim1_small, optimize=True)
 
-    # sum_of_products_contig_outstride0_one：non_contiguous arrays
+    # sum_of_products_contig_outstride0_one: non_contiguous arrays
     def time_einsum_noncon_contig_outstride0(self, dtype):
         np.einsum("i->", self.non_contiguous_dim1, optimize=True)
 
@@ -217,3 +229,41 @@ class LinAlgTransposeVdot(Benchmark):
 
     def time_vdot(self, shape, npdtypes):
         np.vdot(self.xarg, self.x2arg)
+
+
+class MatmulStrided(Benchmark):
+    # some interesting points selected from
+    # https://github.com/numpy/numpy/pull/23752#issuecomment-2629521597
+    # (m, p, n, batch_size)
+    args = [
+        (2, 2, 2, 1), (2, 2, 2, 10), (5, 5, 5, 1), (5, 5, 5, 10),
+        (10, 10, 10, 1), (10, 10, 10, 10), (20, 20, 20, 1), (20, 20, 20, 10),
+        (50, 50, 50, 1), (50, 50, 50, 10),
+        (150, 150, 100, 1), (150, 150, 100, 10),
+        (400, 400, 100, 1), (400, 400, 100, 10)
+    ]
+
+    param_names = ['configuration']
+
+    def __init__(self):
+        self.args_map = {
+            'matmul_m%03d_p%03d_n%03d_bs%02d' % arg: arg for arg in self.args
+        }
+
+        self.params = [list(self.args_map.keys())]
+
+    def setup(self, configuration):
+        m, p, n, batch_size = self.args_map[configuration]
+
+        self.a1raw = np.random.rand(batch_size * m * 2 * n).reshape(
+            (batch_size, m, 2 * n)
+        )
+
+        self.a1 = self.a1raw[:, :, ::2]
+
+        self.a2 = np.random.rand(batch_size * n * p).reshape(
+            (batch_size, n, p)
+        )
+
+    def time_matmul(self, configuration):
+        return np.matmul(self.a1, self.a2)

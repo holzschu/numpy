@@ -1,13 +1,15 @@
-import os
-import shutil
-import pathlib
 import importlib
+import os
+import pathlib
+import shutil
 import subprocess
+import sys
 
 import click
 import spin
 from spin.cmds import meson
 
+IS_PYPY = (sys.implementation.name == 'pypy')
 
 # Check that the meson git submodule is present
 curdir = pathlib.Path(__file__).parent
@@ -46,8 +48,8 @@ def changelog(token, revision_range):
     $ spin authors -t $GH_TOKEN --revision-range v1.25.0..v1.26.0
     """
     try:
-        from github.GithubException import GithubException
         from git.exc import GitError
+        from github.GithubException import GithubException
         changelog = _get_numpy_tools(pathlib.Path('changelog.py'))
     except ModuleNotFoundError as e:
         raise click.ClickException(
@@ -127,12 +129,16 @@ def docs(*, parent_callback, **kwargs):
 jobs_param = next(p for p in docs.params if p.name == 'jobs')
 jobs_param.default = 1
 
+if IS_PYPY:
+    default = "not slow and not slow_pypy"
+else:
+    default = "not slow"
 
 @click.option(
     "-m",
     "markexpr",
     metavar='MARKEXPR',
-    default="not slow",
+    default=default,
     help="Run tests with the given markers"
 )
 @spin.util.extend_command(spin.cmds.meson.test)
@@ -187,7 +193,7 @@ def check_docs(*, parent_callback, pytest_args, **kwargs):
     """  # noqa: E501
     try:
         # prevent obscure error later
-        import scipy_doctest
+        import scipy_doctest  # noqa: F401
     except ModuleNotFoundError as e:
         raise ModuleNotFoundError("scipy-doctest not installed") from e
 
@@ -257,6 +263,7 @@ def _set_mem_rlimit(max_mem=None):
     Set address space rlimit
     """
     import resource
+
     import psutil
 
     mem = psutil.virtual_memory()
@@ -609,7 +616,8 @@ def notes(version_override):
     )
 
     try:
-        test_notes = _get_numpy_tools(pathlib.Path('ci', 'test_all_newsfragments_used.py'))
+        cmd = pathlib.Path('ci', 'test_all_newsfragments_used.py')
+        test_notes = _get_numpy_tools(cmd)
     except ModuleNotFoundError as e:
         raise click.ClickException(
             f"{e.msg}. Install the missing packages to use this command."

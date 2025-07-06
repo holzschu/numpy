@@ -274,20 +274,26 @@ Test the header writing.
     "v\x00{'descr': [('x', '>i4', (2,)), ('y', '>f8', (2, 2)), ('z', '|u1')],\n 'fortran_order': False,\n 'shape': (2,)}         \n"
     "\x16\x02{'descr': [('x', '>i4', (2,)),\n           ('Info',\n            [('value', '>c16'),\n             ('y2', '>f8'),\n             ('Info2',\n              [('name', '|S2'),\n               ('value', '>c16', (2,)),\n               ('y3', '>f8', (2,)),\n               ('z3', '>u4', (2,))]),\n             ('name', '|S2'),\n             ('z2', '|b1')]),\n           ('color', '|S2'),\n           ('info', [('Name', '>U8'), ('Value', '>c16')]),\n           ('y', '>f8', (2, 2)),\n           ('z', '|u1')],\n 'fortran_order': False,\n 'shape': (2,)}      \n"
 '''
-import sys
 import os
+import sys
 import warnings
-import pytest
 from io import BytesIO
 
-import numpy as np
-from numpy.testing import (
-    assert_, assert_array_equal, assert_raises, assert_raises_regex,
-    assert_warns, IS_PYPY, IS_WASM
-    )
-from numpy.testing._private.utils import requires_memory
-from numpy.lib import format
+import pytest
 
+import numpy as np
+from numpy.lib import format
+from numpy.testing import (
+    IS_64BIT,
+    IS_PYPY,
+    IS_WASM,
+    assert_,
+    assert_array_equal,
+    assert_raises,
+    assert_raises_regex,
+    assert_warns,
+)
+from numpy.testing._private.utils import requires_memory
 
 # Generate some basic arrays to test with.
 scalars = [
@@ -396,7 +402,7 @@ record_arrays = [
 ]
 
 
-#BytesIO that reads a random number of bytes at a time
+# BytesIO that reads a random number of bytes at a time
 class BytesIOSRandomSize(BytesIO):
     def read(self, size=None):
         import random
@@ -423,11 +429,10 @@ def roundtrip_randsize(arr):
 def roundtrip_truncated(arr):
     f = BytesIO()
     format.write_array(f, arr)
-    #BytesIO is one byte short
+    # BytesIO is one byte short
     f2 = BytesIO(f.getvalue()[0:-1])
     arr2 = format.read_array(f2)
     return arr2
-
 
 def assert_equal_(o1, o2):
     assert_(o1 == o2)
@@ -451,6 +456,30 @@ def test_roundtrip_truncated():
         if arr.dtype != object:
             assert_raises(ValueError, roundtrip_truncated, arr)
 
+def test_file_truncated(tmp_path):
+    path = tmp_path / "a.npy"
+    for arr in basic_arrays:
+        if arr.dtype != object:
+            with open(path, 'wb') as f:
+                format.write_array(f, arr)
+            # truncate the file by one byte
+            with open(path, 'rb+') as f:
+                f.seek(-1, os.SEEK_END)
+                f.truncate()
+            with open(path, 'rb') as f:
+                with pytest.raises(
+                    ValueError,
+                    match=(
+                        r"EOF: reading array header, "
+                        r"expected (\d+) bytes got (\d+)"
+                    ) if arr.size == 0 else (
+                        r"Failed to read all data for array\. "
+                        r"Expected \(.*?\) = (\d+) elements, "
+                        r"could only read (\d+) elements\. "
+                        r"\(file seems not fully written\?\)"
+                    )
+                ):
+                    _ = format.read_array(f)
 
 def test_long_str():
     # check items larger than internal buffer size, gh-4027
@@ -926,8 +955,7 @@ def test_large_file_support(tmpdir):
 
 
 @pytest.mark.skipif(IS_PYPY, reason="flaky on PyPy")
-@pytest.mark.skipif(np.dtype(np.intp).itemsize < 8,
-                    reason="test requires 64-bit system")
+@pytest.mark.skipif(not IS_64BIT, reason="test requires 64-bit system")
 @pytest.mark.slow
 @requires_memory(free_bytes=2 * 2**30)
 def test_large_archive(tmpdir):

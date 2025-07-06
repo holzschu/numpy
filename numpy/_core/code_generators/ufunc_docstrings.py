@@ -50,11 +50,11 @@ def add_newdoc(place, name, doc):
     )
     if name[0] != '_' and name not in skip:
         if '\nx :' in doc:
-            assert '$OUT_SCALAR_1' in doc, "in {}".format(name)
+            assert '$OUT_SCALAR_1' in doc, f"in {name}"
         elif '\nx2 :' in doc or '\nx1, x2 :' in doc:
-            assert '$OUT_SCALAR_2' in doc, "in {}".format(name)
+            assert '$OUT_SCALAR_2' in doc, f"in {name}"
         else:
-            assert False, "Could not detect number of inputs in {}".format(name)
+            assert False, f"Could not detect number of inputs in {name}"
 
     for k, v in subst.items():
         doc = doc.replace('$' + k, v)
@@ -2830,7 +2830,7 @@ add_newdoc('numpy._core.umath', 'matmul',
       >>> # n is 7, k is 4, m is 3
 
     The matmul function implements the semantics of the ``@`` operator
-    introduced in Python 3.5 following :pep:`465`.
+    defined in :pep:`465`.
 
     It uses an optimized BLAS library when possible (see `numpy.linalg`).
 
@@ -3581,8 +3581,8 @@ add_newdoc('numpy._core.umath', 'remainder',
 
         This should not be confused with:
 
-        * Python 3.7's `math.remainder` and C's ``remainder``, which
-          computes the IEEE remainder, which are the complement to
+        * Python's `math.remainder` and C's ``remainder``, which
+          compute the IEEE remainder, which are the complement to
           ``round(x1 / x2)``.
         * The MATLAB ``rem`` function and or the C ``%`` operator which is the
           complement to ``int(x1 / x2)``.
