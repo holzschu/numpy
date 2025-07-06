@@ -154,12 +154,6 @@ npy_ObjectLogicalNot(PyObject *i1)
     }
 }
 
-// iOS: move static variables out of functions, so they can be re-initialized:
-#if TARGET_OS_IPHONE
-static PyObject *math_gcd_func = NULL;
-static PyObject *internal_gcd_func = NULL;
-#endif
-
 static PyObject *
 npy_ObjectFloor(PyObject *obj) {
     return PyObject_CallFunction(npy_static_pydata.math_floor_func,

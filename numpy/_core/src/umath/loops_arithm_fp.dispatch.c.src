@@ -170,14 +170,6 @@ NPY_NO_EXPORT void NPY_CPU_DISPATCH_CURFX(@TYPE@_@kind@)
                 npyv_@sfx@ r = npyv_@intrin@_@sfx@(a, b);
                 npyv_store_till_@sfx@((@type@*)dst, len, r);
             }
-        #if (@is_div@ || @is_mul@) && WORKAROUND_CLANG_PARTIAL_LOAD_BUG
-            // last partial iteration for multiply / divide and working around clang partial load bug
-            if(len > 0){
-                volatile npyv_@sfx@ a = npyv_load_till_@sfx@((const @type@*)src0, len, 1.0@c@);
-                npyv_@sfx@ r = npyv_@intrin@_@sfx@(a, b);
-                npyv_store_till_@sfx@((@type@*)dst, len, r);
-            }
-        #endif // #if (@is_div@ || @is_mul@) && WORKAROUND_CLANG_PARTIAL_LOAD_BUG
         } else {
             goto loop_scalar;
         }

@@ -130,7 +130,7 @@ else:
         # iOS: the actual library path depends on the executable and APPDIR. We cannot create it in python
         # so we create it in callproc.c (py_dl_open).
         import sys
-        if (sys.platform == 'darwin' and os.uname().machine.startswith('iP')):
+        if (sys.platform == 'ios'):
             libpath = loader_path + '.' + libname
             return ctypes.cdll[libpath]
             

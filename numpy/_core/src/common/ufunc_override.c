@@ -18,7 +18,6 @@
  * Returns a new reference, the value of type(obj).__array_ufunc__ if it
  * exists and is different from that of ndarray, and NULL otherwise.
  */
-
 NPY_NO_EXPORT PyObject *
 PyUFuncOverride_GetNonDefaultArrayUfunc(PyObject *obj)
 {

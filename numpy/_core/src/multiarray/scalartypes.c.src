@@ -4403,13 +4403,13 @@ initialize_numeric_types(void)
 	PyGenericArrType_Type.tp_as_buffer = NULL;
 	PyGenericArrType_Type.tp_doc = NULL;
 	PyGenericArrType_Type.tp_traverse = NULL;
-	PyGenericArrType_Type.tp_weaklistoffset = NULL;
+	PyGenericArrType_Type.tp_weaklistoffset = 0;
 	PyGenericArrType_Type.tp_iter = NULL;
 	PyGenericArrType_Type.tp_iternext = NULL;
 	PyGenericArrType_Type.tp_members = NULL;
 	PyGenericArrType_Type.tp_descr_get = NULL;
 	PyGenericArrType_Type.tp_descr_set = NULL;
-	PyGenericArrType_Type.tp_dictoffset = NULL;
+	PyGenericArrType_Type.tp_dictoffset = 0;
 	PyGenericArrType_Type.tp_init = NULL;
 	PyGenericArrType_Type.tp_is_gc = NULL;
 

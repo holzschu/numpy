@@ -86,10 +86,8 @@ NPY_NO_EXPORT int NPY_NUMUSERTYPES = 0;
 // Cache cleanup on leaving:
 // NPY_NO_EXPORT void release_buffer_info_cache(void);
 NPY_NO_EXPORT void npy_clean_caches(void);
-NPY_NO_EXPORT void PyUFuncOverride_ResetDefaultArrayUfunc(void);
 NPY_NO_EXPORT void clear_descriptor_caches(void);
 NPY_NO_EXPORT void clear_global_pytype_to_type_dict(void); 
-NPY_NO_EXPORT void clear_strfuncs_cache(void);
 // reset types to default values:
 NPY_NO_EXPORT void reset_PyArray_Type(void);
 NPY_NO_EXPORT void reset_PyUFunc_Type(void);
@@ -4367,24 +4365,6 @@ _set_numpy_warn_if_no_mem_policy(PyObject *NPY_UNUSED(self), PyObject *arg)
     if (res < 0) {
         return NULL;
     }
-    int old_value = numpy_warn_if_no_mem_policy;
-    numpy_warn_if_no_mem_policy = res;
-    if (old_value) {
-        Py_RETURN_TRUE;
-    }
-    else {
-        Py_RETURN_FALSE;
-    }
-}
-
-
-static PyObject *
-_set_numpy_warn_if_no_mem_policy(PyObject *NPY_UNUSED(self), PyObject *arg)
-{
-    int res = PyObject_IsTrue(arg);
-    if (res < 0) {
-        return NULL;
-    }
     int old_value = npy_thread_unsafe_state.warn_if_no_mem_policy;
     npy_thread_unsafe_state.warn_if_no_mem_policy = res;
     if (old_value) {
@@ -4819,9 +4799,7 @@ multiarray_umath_free(PyObject *m)
 {
     // release_buffer_info_cache();
     npy_clean_caches();
-    PyUFuncOverride_ResetDefaultArrayUfunc();
     // npy_cache_import: strfuncs.c:
-    clear_strfuncs_cache();
     // array_coercion.c
     clear_global_pytype_to_type_dict(); 
     // initialized = 0; // reload_guard.initialized ?
@@ -4836,14 +4814,6 @@ initialize_thread_unsafe_state(void) {
     }
     else {
         npy_thread_unsafe_state.warn_if_no_mem_policy = 0;
-    }
-
-    env = getenv("NUMPY_WARN_IF_NO_MEM_POLICY");
-    if ((env != NULL) && (strncmp(env, "1", 1) == 0)) {
-        numpy_warn_if_no_mem_policy = 1;
-    }
-    else {
-        numpy_warn_if_no_mem_policy = 0;
     }
 
     return 0;
@@ -4872,8 +4842,9 @@ PyMODINIT_FUNC PyInit__multiarray_umath(void) {
 
 #if TARGET_OS_IPHONE
 // iOS: re-initialize PyArray_API and PyUFunc_API with new pointers to functions
-#include <numpy/__multiarray_api_init.c>
-#include <numpy/__ufunc_api_init.c>
+// Python 3.13: not possible anymore. We'll see if it's needed.
+// #include <numpy/__multiarray_api_init.c>
+// #include <numpy/__ufunc_api_init.c>
     // TODO: check if still needed
 #endif
 
@@ -4915,19 +4886,20 @@ PyMODINIT_FUNC PyInit__multiarray_umath(void) {
     }
 
     // iOS: before any access, we reset PyArrayType and PyUFunc_Type to their default values.
+    // Python 3.13: comment this, because it crashes at startup if enabled.
 #if TARGET_OS_IPHONE
 	// reset these types is essential (crash if we don't)
-    reset_PyArray_Type();
-    reset_PyUFunc_Type();
-    // reset these types is not essential, but done for completeness
-	reset_NpyBusDayCalendar_Type();
-	reset_PyArrayFlags_Type();
-	reset_NpyIter_Type();
-	reset_PyArrayNeighborhoodIter_Type();
-	reset_PyArrayMultiIter_Type();
-	reset_PyArrayMapIter_Type();
-	reset_PyArrayIter_Type();
-	reset_PyArrayDTypeMeta_Type();
+    // reset_PyArray_Type();
+    // reset_PyUFunc_Type();
+    // // reset these types is not essential, but done for completeness
+	// reset_NpyBusDayCalendar_Type();
+	// reset_PyArrayFlags_Type();
+	// reset_NpyIter_Type();
+	// reset_PyArrayNeighborhoodIter_Type();
+	// reset_PyArrayMultiIter_Type();
+	// reset_PyArrayMapIter_Type();
+	// reset_PyArrayIter_Type();
+	// reset_PyArrayDTypeMeta_Type();
 #endif
     if (intern_strings() < 0) {
         goto err;

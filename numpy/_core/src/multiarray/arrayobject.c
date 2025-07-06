@@ -64,9 +64,6 @@ maintainer email:  oliphant.travis@ieee.org
 #include "array_coercion.h"
 #include "multiarraymodule.h"
 
-
-NPY_NO_EXPORT npy_bool numpy_warn_if_no_mem_policy = 0;
-
 /*NUMPY_API
   Compute the size of an array (in number of items)
 */
@@ -1227,21 +1224,6 @@ array_iter(PyArrayObject *arr)
     return PySeqIter_New((PyObject *)arr);
 }
 
-
-array_alloc(PyTypeObject *type, Py_ssize_t NPY_UNUSED(nitems))
-{
-    /* nitems will always be 0 */
-    PyObject *obj = PyObject_Malloc(type->tp_basicsize);
-    PyObject_Init(obj, type);
-    return obj;
-}
-
-static void
-array_free(PyObject * v)
-{
-    /* avoid same deallocator as PyBaseObject, see gentype_free */
-    PyObject_Free(v);
-}
 
 NPY_NO_EXPORT PyTypeObject PyArray_Type = {
     PyVarObject_HEAD_INIT(NULL, 0)

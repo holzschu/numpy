@@ -240,6 +240,7 @@ get_args_and_kwargs(
     return 0;
 }
 
+
 static void
 set_no_matching_types_error(PyObject *public_api, PyObject *types)
 {

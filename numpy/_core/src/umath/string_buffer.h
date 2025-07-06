@@ -5,6 +5,10 @@
 #include <cstddef>
 #include <wchar.h>
 
+#if TARGET_OS_IPHONE
+#undef getchar
+#endif
+
 #define NPY_NO_DEPRECATED_API NPY_API_VERSION
 #define _MULTIARRAYMODULE
 #define _UMATHMODULE
