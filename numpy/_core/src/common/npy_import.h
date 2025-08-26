@@ -46,7 +46,11 @@ typedef struct npy_runtime_imports_struct {
     PyObject *_void_scalar_to_string;
 } npy_runtime_imports_struct;
 
+#if !TARGET_OS_IPHONE
 NPY_VISIBILITY_HIDDEN extern npy_runtime_imports_struct npy_runtime_imports;
+#else
+NPY_VISIBILITY_HIDDEN extern __thread npy_runtime_imports_struct npy_runtime_imports;
+#endif
 
 /*! \brief Import a Python object.
 

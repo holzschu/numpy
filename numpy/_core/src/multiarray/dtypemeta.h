@@ -246,7 +246,11 @@ extern PyArray_DTypeMeta *_Void_dtype;
 // StringDType is not a legacy DType and has a static dtypemeta implementation
 // we can refer to, so no need for the indirection we use for the built-in
 // dtypes.
+#if !TARGET_OS_IPHONE
 extern PyArray_DTypeMeta PyArray_StringDType;
+#else
+extern __thread PyArray_DTypeMeta PyArray_StringDType;
+#endif
 /* Datetime/Timedelta */
 #define PyArray_DatetimeDType (*(_Datetime_dtype))
 #define PyArray_TimedeltaDType (*(_Timedelta_dtype))

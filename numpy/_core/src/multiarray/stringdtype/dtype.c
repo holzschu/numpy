@@ -814,7 +814,11 @@ PyArray_StringDType_hash(PyObject *self)
  * PyArray_DTypeMeta, which is a larger struct than a typical type.
  * (This should get a bit nicer eventually with Python >3.11.)
  */
+#if !TARGET_OS_IPHONE
 PyArray_DTypeMeta PyArray_StringDType = {
+#else
+PyArray_DTypeMeta __thread PyArray_StringDType = {
+#endif
         {{
                 PyVarObject_HEAD_INIT(NULL, 0).tp_name =
                         "numpy.dtypes.StringDType",

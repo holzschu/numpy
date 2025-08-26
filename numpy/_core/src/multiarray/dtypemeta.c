@@ -1149,9 +1149,9 @@ dtypemeta_wrap_legacy_descriptor(
         {{
             PyVarObject_HEAD_INIT(&PyArrayDTypeMeta_Type, 0)
             .tp_name = NULL,  /* set below */
-            .tp_basicsize = sizeof(PyArray_Descr),
+            .tp_basicsize = sizeof(_PyArray_LegacyDescr),
             .tp_flags = Py_TPFLAGS_DEFAULT,
-            .tp_base = &PyArrayDescr_Type,
+            .tp_base =  NULL,  /* set below */
             .tp_new = (newfunc)legacy_dtype_default_new,
             .tp_doc = (
                 "DType class corresponding to the scalar type and dtype of "
@@ -1258,8 +1258,6 @@ dtypemeta_wrap_legacy_descriptor(
     if (_PyArray_MapPyTypeToDType(dtype_class, descr->typeobj,
             PyTypeNum_ISUSERDEF(dtype_class->type_num)) < 0) {
         Py_DECREF(dtype_class);
-        fprintf(stderr, "Before dtypemeta_wrap_legacy_descriptor: dtype_class: %s  descr->typeobj: %s\n",  ((PyTypeObject *)dtype_class)->tp_name, descr->typeobj->tp_name); 
-        fprintf(stderr, "Inside dtypemeta_wrap_legacy_descriptor, _PyArray_MapPyTypeToDType(dtype_class, descr->typeobj, PyTypeNum_ISUSERDEF(dtype_class->type_num)) < 0) < 0\n");
         return -1;
     }
 
@@ -1395,11 +1393,17 @@ NPY_NO_EXPORT void reset_PyArrayDTypeMeta_Type() {
    PyArrayDTypeMeta_Type.tp_doc = "Preliminary NumPy API: The Type of NumPy DTypes (metaclass)";
    PyArrayDTypeMeta_Type.tp_traverse = (traverseproc)dtypemeta_traverse;
    PyArrayDTypeMeta_Type.tp_members = dtypemeta_members;
+   PyArrayDTypeMeta_Type.tp_getset = dtypemeta_getset,
    PyArrayDTypeMeta_Type.tp_base = NULL;  /* set to PyType_Type at import time */
    PyArrayDTypeMeta_Type.tp_init = (initproc)dtypemeta_init;
    PyArrayDTypeMeta_Type.tp_alloc = dtypemeta_alloc;
    PyArrayDTypeMeta_Type.tp_new = dtypemeta_new;
    PyArrayDTypeMeta_Type.tp_is_gc = dtypemeta_is_gc;
+
+   PyArrayDTypeMeta_Type.tp_getset[0].get = (getter)dtypemeta_get_abstract;
+   PyArrayDTypeMeta_Type.tp_getset[1].get = (getter)dtypemeta_get_legacy;
+   PyArrayDTypeMeta_Type.tp_getset[2].get = (getter)dtypemeta_get_parametric;
+   PyArrayDTypeMeta_Type.tp_getset[3].get = (getter)dtypemeta_get_is_numeric;
 }
 #endif
 

@@ -15,9 +15,15 @@
 #include "extobj.h"
 
 // static variables are zero-filled by default, no need to explicitly do so
+#if !TARGET_OS_IPHONE
 NPY_VISIBILITY_HIDDEN npy_interned_str_struct npy_interned_str;
 NPY_VISIBILITY_HIDDEN npy_static_pydata_struct npy_static_pydata;
 NPY_VISIBILITY_HIDDEN npy_static_cdata_struct npy_static_cdata;
+#else
+NPY_VISIBILITY_HIDDEN __thread npy_interned_str_struct npy_interned_str;
+NPY_VISIBILITY_HIDDEN __thread npy_static_pydata_struct npy_static_pydata;
+NPY_VISIBILITY_HIDDEN __thread npy_static_cdata_struct npy_static_cdata;
+#endif
 
 #define INTERN_STRING(struct_member, string)                             \
     assert(npy_interned_str.struct_member == NULL);                      \

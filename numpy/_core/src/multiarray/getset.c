@@ -367,7 +367,6 @@ array_nbytes_get(PyArrayObject *self, void *NPY_UNUSED(ignored))
  * (contiguous or fortran) with compatible dimensions The shape and strides
  * will be adjusted in that case as well.
  */
-
 static int
 array_descr_set(PyArrayObject *self, PyObject *arg, void *NPY_UNUSED(ignored))
 {

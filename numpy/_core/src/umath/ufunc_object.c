@@ -3457,23 +3457,10 @@ PyUFunc_GenericReduction(PyUFuncObject *ufunc,
     int keepdims = 0;
     PyObject *initial = NULL;
     npy_bool out_is_passed_by_position;
-#if !TARGET_OS_IPHONE
-    static char *reduce_kwlist[] = {
-        "array", "axis", "dtype", "out", "keepdims", "initial", "where", NULL};
-    static char *accumulate_kwlist[] = {
-            "array", "axis", "dtype", "out", NULL};
-    static char *reduceat_kwlist[] = {
-            "array", "indices", "axis", "dtype", "out", NULL};
 
+#if !TARGET_OS_IPHONE
     static char *_reduce_type[] = {"reduce", "accumulate", "reduceat", NULL};
 #else
-    static __thread char *reduce_kwlist[] = {
-        "array", "axis", "dtype", "out", "keepdims", "initial", "where", NULL};
-    static __thread char *accumulate_kwlist[] = {
-            "array", "axis", "dtype", "out", NULL};
-    static __thread char *reduceat_kwlist[] = {
-            "array", "indices", "axis", "dtype", "out", NULL};
-
     static __thread char *_reduce_type[] = {"reduce", "accumulate", "reduceat", NULL};
 #endif
     if (ufunc == NULL) {
@@ -6442,6 +6429,7 @@ _typecharfromnum(int num) {
     return ret;
 }
 
+
 static PyObject *
 ufunc_get_doc(PyUFuncObject *ufunc, void *NPY_UNUSED(ignored))
 {
@@ -6661,8 +6649,8 @@ NPY_NO_EXPORT void reset_PyUFunc_Type(void)
     PyUFunc_Type.tp_hash  = 0;
     PyUFunc_Type.tp_call  = &PyVectorcall_Call;
     PyUFunc_Type.tp_str  = (reprfunc)ufunc_repr;
-    PyUFunc_Type.tp_getattro  = 0;
-    PyUFunc_Type.tp_setattro  = 0;
+    PyUFunc_Type.tp_getattro  = PyObject_GenericGetAttr;
+    PyUFunc_Type.tp_setattro  = PyObject_GenericSetAttr;
     PyUFunc_Type.tp_as_buffer  = 0;
     PyUFunc_Type.tp_flags  = Py_TPFLAGS_DEFAULT |
         _Py_TPFLAGS_HAVE_VECTORCALL |
@@ -6675,13 +6663,13 @@ NPY_NO_EXPORT void reset_PyUFunc_Type(void)
     PyUFunc_Type.tp_iter  = 0;
     PyUFunc_Type.tp_iternext  = 0;
     PyUFunc_Type.tp_methods  = ufunc_methods;
-    PyUFunc_Type.tp_members  = 0;
+    PyUFunc_Type.tp_members  = ufunc_members;
     PyUFunc_Type.tp_getset  = ufunc_getset;
     PyUFunc_Type.tp_base  = 0;
     PyUFunc_Type.tp_dict  = 0;
     PyUFunc_Type.tp_descr_get  = 0;
     PyUFunc_Type.tp_descr_set  = 0;
-    PyUFunc_Type.tp_dictoffset  = 0;
+    PyUFunc_Type.tp_dictoffset  = offsetof(PyUFuncObject, dict);
     PyUFunc_Type.tp_init  = 0;
     PyUFunc_Type.tp_alloc  = 0;
     PyUFunc_Type.tp_new  = 0;

@@ -175,9 +175,15 @@ typedef struct npy_static_cdata_struct {
     npy_int16 _letter_to_num['z' + 1 - '?'];
 } npy_static_cdata_struct;
 
+#if !TARGET_OS_IPHONE
 NPY_VISIBILITY_HIDDEN extern npy_interned_str_struct npy_interned_str;
 NPY_VISIBILITY_HIDDEN extern npy_static_pydata_struct npy_static_pydata;
 NPY_VISIBILITY_HIDDEN extern npy_static_cdata_struct npy_static_cdata;
+#else
+NPY_VISIBILITY_HIDDEN extern __thread npy_interned_str_struct npy_interned_str;
+NPY_VISIBILITY_HIDDEN extern __thread npy_static_pydata_struct npy_static_pydata;
+NPY_VISIBILITY_HIDDEN extern __thread npy_static_cdata_struct npy_static_cdata;
+#endif
 
 #ifdef __cplusplus
 }

@@ -80,7 +80,11 @@ typedef struct npy_thread_unsafe_state_struct {
 } npy_thread_unsafe_state_struct;
 
 
+#if !TARGET_OS_IPHONE
 NPY_VISIBILITY_HIDDEN extern npy_thread_unsafe_state_struct npy_thread_unsafe_state;
+#else
+NPY_VISIBILITY_HIDDEN extern __thread npy_thread_unsafe_state_struct npy_thread_unsafe_state;
+#endif
 
 NPY_NO_EXPORT int
 get_legacy_print_mode(void);

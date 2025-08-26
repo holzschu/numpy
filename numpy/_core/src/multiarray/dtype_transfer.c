@@ -712,6 +712,7 @@ _aligned_contig_to_contig_cast(
     return 0;
 }
 
+
 /*
  * Does a datetime->datetime, timedelta->timedelta,
  * datetime->ascii, or ascii->datetime cast

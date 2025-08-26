@@ -711,7 +711,7 @@ NPY_NO_EXPORT PyTypeObject PyArrayFlags_Type = {
 
 #if TARGET_OS_IPHONE
 NPY_NO_EXPORT void reset_PyArrayFlags_Type() {
-    PyArrayFlags_Type.tp_name = "numpy.flagsobj";
+    PyArrayFlags_Type.tp_name = "numpy.multiarray.flagsobj";
     PyArrayFlags_Type.tp_basicsize = sizeof(PyArrayFlagsObject);
     PyArrayFlags_Type.tp_dealloc = (destructor)arrayflags_dealloc;
     PyArrayFlags_Type.tp_repr = (reprfunc)arrayflags_print;

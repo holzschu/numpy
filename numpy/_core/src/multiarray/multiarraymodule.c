@@ -85,9 +85,7 @@ NPY_NO_EXPORT int NPY_NUMUSERTYPES = 0;
 // iOS: clean cached values.
 #if TARGET_OS_IPHONE
 // Cache cleanup on leaving:
-// NPY_NO_EXPORT void release_buffer_info_cache(void);
 NPY_NO_EXPORT void npy_clean_caches(void);
-NPY_NO_EXPORT void clear_descriptor_caches(void);
 NPY_NO_EXPORT void clear_global_pytype_to_type_dict(void); 
 // reset types to default values:
 NPY_NO_EXPORT void reset_PyArray_Type(void);
@@ -4823,8 +4821,11 @@ set_flaginfo(PyObject *d)
 }
 
 // static variables are automatically zero-initialized
+#if !TARGET_OS_IPHONE
 NPY_VISIBILITY_HIDDEN npy_thread_unsafe_state_struct npy_thread_unsafe_state;
-
+#else
+NPY_VISIBILITY_HIDDEN __thread npy_thread_unsafe_state_struct npy_thread_unsafe_state;
+#endif
 
 #if TARGET_OS_IPHONE
 static void
@@ -4835,7 +4836,6 @@ multiarray_umath_free(PyObject *m)
     // npy_cache_import: strfuncs.c:
     // array_coercion.c
     clear_global_pytype_to_type_dict(); 
-    // initialized = 0; // reload_guard.initialized ?
 }
 #endif
 
@@ -4872,14 +4872,6 @@ static struct PyModuleDef moduledef = {
 PyMODINIT_FUNC PyInit__multiarray_umath(void) {
     PyObject *m, *d, *s;
     PyObject *c_api;
-
-#if TARGET_OS_IPHONE
-// iOS: re-initialize PyArray_API and PyUFunc_API with new pointers to functions
-// Python 3.13: not possible anymore. We'll see if it's needed.
-// #include <numpy/__multiarray_api_init.c>
-// #include <numpy/__ufunc_api_init.c>
-    // TODO: check if still needed
-#endif
 
     /* Create the module and add the functions */
     m = PyModule_Create(&moduledef);
@@ -4923,20 +4915,19 @@ PyMODINIT_FUNC PyInit__multiarray_umath(void) {
     }
 
     // iOS: before any access, we reset PyArrayType and PyUFunc_Type to their default values.
-    // Python 3.13: comment this, because it crashes at startup if enabled.
 #if TARGET_OS_IPHONE
-	// reset these types is essential (crash if we don't)
-    // reset_PyArray_Type();
-    // reset_PyUFunc_Type();
-    // // reset these types is not essential, but done for completeness
-	// reset_NpyBusDayCalendar_Type();
-	// reset_PyArrayFlags_Type();
-	// reset_NpyIter_Type();
-	// reset_PyArrayNeighborhoodIter_Type();
-	// reset_PyArrayMultiIter_Type();
-	// reset_PyArrayMapIter_Type();
-	// reset_PyArrayIter_Type();
-	// reset_PyArrayDTypeMeta_Type();
+    // reset these types is not essential, but done for completeness
+    reset_PyArray_Type();
+    reset_PyUFunc_Type();
+	reset_NpyBusDayCalendar_Type();
+	reset_PyArrayFlags_Type();
+	reset_NpyIter_Type();
+	reset_PyArrayNeighborhoodIter_Type();
+	reset_PyArrayMultiIter_Type();
+	reset_PyArrayMapIter_Type();
+	reset_PyArrayIter_Type();
+	// Reseting this type is essential now:
+	reset_PyArrayDTypeMeta_Type(); 
 #endif
     if (intern_strings() < 0) {
         goto err;

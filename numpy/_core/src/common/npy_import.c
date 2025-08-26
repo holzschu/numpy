@@ -6,7 +6,11 @@
 #include "npy_atomic.h"
 
 
+#if !TARGET_OS_IPHONE
 NPY_VISIBILITY_HIDDEN npy_runtime_imports_struct npy_runtime_imports;
+#else
+NPY_VISIBILITY_HIDDEN __thread npy_runtime_imports_struct npy_runtime_imports;
+#endif
 
 NPY_NO_EXPORT int
 init_import_mutex(void) {

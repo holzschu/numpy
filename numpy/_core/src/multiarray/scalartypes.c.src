@@ -4416,7 +4416,6 @@ initialize_numeric_types(void)
 	PyGenericArrType_Type.tp_getattro = NULL;
 	PyGenericArrType_Type.tp_setattro = NULL;
 	PyGenericArrType_Type.tp_as_buffer = NULL;
-	PyGenericArrType_Type.tp_doc = NULL;
 	PyGenericArrType_Type.tp_traverse = NULL;
 	PyGenericArrType_Type.tp_weaklistoffset = 0;
 	PyGenericArrType_Type.tp_iter = NULL;
@@ -4458,6 +4457,7 @@ initialize_numeric_types(void)
     @name@_arrtype_as_number = gentype_as_number;
     Py@NAME@ArrType_Type.tp_as_number = &@name@_arrtype_as_number;
     Py@NAME@ArrType_Type.tp_as_number->nb_index = (unaryfunc)@name@_index;
+
     /**end repeat**/
 
     /**begin repeat
@@ -4468,6 +4468,7 @@ initialize_numeric_types(void)
      */
     @name@_arrtype_as_number = gentype_as_number;
     Py@NAME@ArrType_Type.tp_as_number = &@name@_arrtype_as_number;
+
     /**end repeat**/
 
     PyStringArrType_Type.tp_alloc = NULL;
