@@ -6,11 +6,18 @@ import pytest
 
 import numpy as np
 from numpy._core import _rational_tests
-from numpy.testing import IS_64BIT, IS_WASM
+from numpy.testing import IS_64BIT, IS_WASM, assert_array_equal
 from numpy.testing._private.utils import run_threaded
 
 if IS_WASM:
     pytest.skip(allow_module_level=True, reason="no threading support in wasm")
+
+
+def test_ufunc_in_new_thread():
+    # iOS module caches must be visible to Python worker threads.
+    with concurrent.futures.ThreadPoolExecutor(max_workers=1) as executor:
+        result = executor.submit(np.sin, [0.0]).result()
+    assert_array_equal(result, [0.0])
 
 
 def test_parallel_randomstate_creation():

@@ -4879,6 +4879,14 @@ PyMODINIT_FUNC PyInit__multiarray_umath(void) {
         return NULL;
     }
 
+#if TARGET_OS_IPHONE
+    /* Static caches outlive Py_Finalize in this framework. Clear pointers from
+     * the preceding interpreter before reinitializing the next command. */
+    npy_interned_str = (npy_interned_str_struct){0};
+    npy_static_pydata = (npy_static_pydata_struct){0};
+    npy_static_cdata = (npy_static_cdata_struct){0};
+#endif
+
     /* Initialize CPU features */
     if (npy_cpu_init() < 0) {
         goto err;
